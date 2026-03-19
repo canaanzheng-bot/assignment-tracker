@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📚 Assignment Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════
+   🔧 PASTE YOUR GOOGLE APPS SCRIPT URL BELOW
+   ═══════════════════════════════════════ */
+:root {
+  --api-url: ""; /* This is just a CSS variable placeholder — actual URL is in JS below */
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: linear-gradient(180deg, #F6F6FB 0%, #EDEDF5 100%); min-height: 100vh; }
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.75 } }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+.container { max-width: 1140px; margin: 0 auto; padding: 32px 20px; }
+.loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 20px; }
+.spinner { width: 40px; height: 40px; border: 4px solid #E8E8EE; border-top-color: #4F5BD5; border-radius: 50%; animation: spin 0.8s linear infinite; }
+.setup-screen { max-width: 640px; margin: 60px auto; background: #fff; border-radius: 20px; padding: 40px; border: 1px solid #EEEEF2; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+.setup-screen h1 { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 800; color: #1A1A2E; margin-bottom: 8px; }
+.setup-screen p { color: #666; font-size: 14px; line-height: 1.7; margin-bottom: 16px; }
+.setup-screen input { width: 100%; padding: 12px 16px; border: 2px solid #E8E8EE; border-radius: 10px; font-size: 14px; font-family: 'DM Sans', sans-serif; outline: none; margin-bottom: 12px; }
+.setup-screen input:focus { border-color: #4F5BD5; }
+.setup-screen .btn { display: inline-block; padding: 12px 28px; border-radius: 12px; border: none; background: linear-gradient(135deg, #4F5BD5, #7B68EE); color: #fff; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(79,91,213,0.3); }
+.setup-screen code { background: #F5F5F8; padding: 2px 8px; border-radius: 4px; font-size: 12px; color: #4F5BD5; }
+.step { background: #FAFAFD; border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; border: 1px solid #EEEEF2; }
+.step-num { display: inline-flex; width: 24px; height: 24px; border-radius: 50%; background: #4F5BD5; color: #fff; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; margin-right: 8px; }
+.syncing-badge { position: fixed; top: 16px; right: 16px; z-index: 999; display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 10px; font-size: 12px; font-weight: 700; font-family: 'DM Sans', sans-serif; animation: fadeIn 0.2s; }
+.syncing-badge.saving { background: #FFF8EE; color: #B8600A; border: 1.5px solid #FFE0B2; }
+.syncing-badge.saved { background: #E8F8EE; color: #1B7A3D; border: 1.5px solid #B2F5C7; }
+.syncing-badge.error { background: #FFF0F0; color: #D5564F; border: 1.5px solid #FFC7C7; }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+/* ═══════════════════════════════════════════════════════════
+   🔧 CONFIGURATION — PASTE YOUR GOOGLE APPS SCRIPT URL HERE
+   ═══════════════════════════════════════════════════════════ */
+const SAVED_API_KEY = "assignment_tracker_api_url";
+
+function getApiUrl() {
+  return localStorage.getItem(SAVED_API_KEY) || "";
+}
+function setApiUrl(url) {
+  localStorage.setItem(SAVED_API_KEY, url);
+}
+
+/* ─── Constants ─── */
+const CATEGORIES = ["Math", "Chinese", "Journal", "Homework"];
+const CATEGORY_ICONS = { Math: "∑", Chinese: "字", Journal: "✎", Homework: "📋" };
+const CATEGORY_COLORS = {
+  Math: { bg: "#EEF0FF", active: "#4F5BD5", border: "#C7CAFF" },
+  Chinese: { bg: "#FFF0F0", active: "#D5564F", border: "#FFC7C7" },
+  Journal: { bg: "#F0FFF4", active: "#38A169", border: "#B2F5C7" },
+  Homework: { bg: "#FFF8EE", active: "#D5944F", border: "#FFE0B2" },
+};
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+
+/* ─── Date Helpers ─── */
+function getWeekKey(date = new Date()) {
+  const d = new Date(date); d.setHours(0,0,0,0);
+  const day = d.getDay(); d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  return d.toISOString().split("T")[0];
+}
+function getDayKey(date = new Date()) { return date.toISOString().split("T")[0]; }
+function getWeekDates(wk) { const s = new Date(wk+"T00:00:00"); return Array.from({length:5},(_,i)=>{const d=new Date(s);d.setDate(d.getDate()+i);return d.toISOString().split("T")[0];}); }
+function getWeekOffset(o) { const d = new Date(); d.setDate(d.getDate()+o*7); return getWeekKey(d); }
+function isDayCompleted(cats) { if (!cats) return false; return Object.values(cats).filter(Boolean).length >= 3; }
+function isWeekCompletedFromDates(sr, wd) { let c=0; for(const d of wd) if(isDayCompleted(sr?.[d])) c++; return c>=4; }
+function countCompletedDays(sr, wd) { let c=0; for(const d of wd) if(isDayCompleted(sr?.[d])) c++; return c; }
+
+/* ─── Alert System ─── */
+const ALERT_LEVELS = {
+  none: { color:"transparent",bg:"transparent",label:"",icon:"",border:"transparent" },
+  yellow: { color:"#B8860B",bg:"#FFF8DC",border:"#FFE066",label:"Concern",icon:"⚠️" },
+  red: { color:"#C0392B",bg:"#FFF0F0",border:"#FF8A8A",label:"At Risk",icon:"🔴" },
+  purple: { color:"#6C3483",bg:"#F5EEFF",border:"#C39BFF",label:"Critical",icon:"🟣" },
+};
+function getStudentAlerts(name, records) {
+  const sr = records[name]||{}; const alerts=[]; const today=new Date(); const todayDay=today.getDay();
+  const cwd=getWeekDates(getWeekKey(today)); const cc=countCompletedDays(sr,cwd);
+  const todayStr=getDayKey(today); const rem=cwd.filter(d=>d>=todayStr).length; const best=cc+rem;
+  if(todayDay>=5&&cc<4) alerts.push({level:"yellow",message:`Only ${cc}/4 days this week`});
+  else if(best<4&&todayDay>=1&&todayDay<=5) alerts.push({level:"yellow",message:`Can only reach ${best}/4 — at risk`});
+  const wr=[]; for(let i=0;i<4;i++){const ds=getWeekDates(getWeekOffset(-i));wr.push({isComplete:countCompletedDays(sr,ds)>=4});}
+  const inc=wr.filter(w=>!w.isComplete).length;
+  if(inc>=2) alerts.push({level:"red",message:`${inc}/4 weeks incomplete`});
+  if(wr.length===4&&wr.every(w=>!w.isComplete)) alerts.push({level:"purple",message:"4 weeks in a row"});
+  return alerts;
+}
+function getHighestAlert(a){if(a.some(x=>x.level==="purple"))return"purple";if(a.some(x=>x.level==="red"))return"red";if(a.some(x=>x.level==="yellow"))return"yellow";return"none";}
+
+/* ─── API Layer ─── */
+async function apiGet(action) {
+  const url = getApiUrl();
+  const res = await fetch(`${url}?action=${action}`);
+  return res.json();
+}
+async function apiPost(data) {
+  const url = getApiUrl();
+  const res = await fetch(url, { method: "POST", body: JSON.stringify(data) });
+  return res.json();
+}
+
+/* ─── Shared Components ─── */
+function CategoryButton({category, checked, onToggle, small}) {
+  const co = CATEGORY_COLORS[category];
+  return <button onClick={onToggle} style={{display:"inline-flex",alignItems:"center",gap:small?4:6,padding:small?"4px 10px":"6px 14px",borderRadius:8,border:`2px solid ${checked?co.active:co.border}`,background:checked?co.active:co.bg,color:checked?"#fff":co.active,fontWeight:600,fontSize:small?12:13,cursor:"pointer",transition:"all 0.2s",fontFamily:"'DM Sans',sans-serif",boxShadow:checked?`0 2px 8px ${co.active}40`:"none"}}>
+    <span style={{fontSize:small?13:15}}>{checked?"✓":CATEGORY_ICONS[category]}</span>{category}
+  </button>;
+}
+function StatusBadge({completed, label}) {
+  return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:completed?"#E8F8EE":"#FFF3E6",color:completed?"#1B7A3D":"#B8600A",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase"}}><span style={{fontSize:8}}>{completed?"●":"○"}</span>{label}</span>;
+}
+function AlertBadge({level, compact}) {
+  if(level==="none")return null; const a=ALERT_LEVELS[level];
+  return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:compact?"2px 8px":"4px 12px",borderRadius:20,fontSize:compact?10:11,fontWeight:800,background:a.bg,color:a.color,border:`1.5px solid ${a.border}`,fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase"}}><span style={{fontSize:compact?10:12}}>{a.icon}</span>{a.label}</span>;
+}
+function ProgressRing({value,max,size=65,strokeWidth=6,color="#4F5BD5"}) {
+  const r=(size-strokeWidth)/2;const c=2*Math.PI*r;const p=(value/max)*c;
+  return <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}><circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#F0F0F5" strokeWidth={strokeWidth}/><circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray={c} strokeDashoffset={c-p} strokeLinecap="round" style={{transition:"stroke-dashoffset 0.6s"}}/></svg>;
+}
+function WeekNavigator({weekOffset, setWeekOffset}) {
+  const ds=getWeekDates(getWeekOffset(weekOffset));
+  const fmt=d=>new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  return <div style={{display:"flex",alignItems:"center",gap:12}}>
+    <button onClick={()=>setWeekOffset(weekOffset-1)} style={{width:32,height:32,borderRadius:"50%",border:"2px solid #E0E0E8",background:"#fff",cursor:"pointer",fontSize:14,color:"#666",display:"flex",alignItems:"center",justifyContent:"center"}}>◂</button>
+    <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,color:"#444",minWidth:160,textAlign:"center"}}>{fmt(ds[0])} — {fmt(ds[4])}{weekOffset===0&&<span style={{color:"#4F5BD5",marginLeft:6,fontSize:11}}>THIS WEEK</span>}</span>
+    <button onClick={()=>setWeekOffset(weekOffset+1)} disabled={weekOffset>=0} style={{width:32,height:32,borderRadius:"50%",border:"2px solid #E0E0E8",background:"#fff",cursor:"pointer",fontSize:14,color:"#666",display:"flex",alignItems:"center",justifyContent:"center"}}>▸</button>
+  </div>;
+}
+function DayPicker({weekDates, selectedDay, onSelectDay, label}) {
+  const todayKey=getDayKey();
+  return <div style={{background:"#fff",borderRadius:14,border:"1px solid #EEEEF2",padding:"12px 16px",marginBottom:20}}>
+    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📅</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:700,color:"#666",textTransform:"uppercase"}}>{label||"Check-in for:"}</span></div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        {weekDates.map((ds,i)=>{
+          const isToday=ds===todayKey;const isSel=ds===selectedDay;const isPast=ds<todayKey;const isFut=ds>todayKey;
+          return <button key={ds} onClick={()=>onSelectDay(ds)} style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"8px 14px",borderRadius:10,cursor:"pointer",border:isSel?"2px solid #4F5BD5":"2px solid #E8E8EE",background:isSel?"linear-gradient(135deg,#4F5BD5,#7B68EE)":(isToday?"#F5F5FF":"#fff"),color:isSel?"#fff":(isFut?"#ccc":"#444"),fontFamily:"'DM Sans',sans-serif",opacity:isFut?0.5:1,minWidth:64,boxShadow:isSel?"0 3px 12px rgba(79,91,213,0.3)":"none",position:"relative"}}>
+            <span style={{fontSize:12,fontWeight:800}}>{WEEKDAYS[i]}</span>
+            <span style={{fontSize:10,fontWeight:500,marginTop:1,opacity:isSel?0.9:0.7}}>{new Date(ds+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+            {isToday&&!isSel&&<div style={{position:"absolute",top:-3,right:-3,width:8,height:8,borderRadius:"50%",background:"#4F5BD5",border:"2px solid #fff"}}/>}
+            {isPast&&!isSel&&!isToday&&<div style={{position:"absolute",bottom:-2,left:"50%",transform:"translateX(-50%)",fontSize:7,color:"#D5944F",fontWeight:800}}>CATCH UP</div>}
+          </button>;
+        })}
+      </div>
+      {selectedDay!==todayKey&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,background:"#FFF8EE",border:"1.5px solid #FFE0B2"}}>
+        <span style={{fontSize:12}}>⏪</span>
+        <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#B8600A"}}>Catch-Up: {new Date(selectedDay+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</span>
+        <button onClick={()=>onSelectDay(todayKey)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#4F5BD5",textDecoration:"underline",padding:0}}>→ Today</button>
+      </div>}
+    </div>
+  </div>;
+}
+
+function SyncBadge({status}) {
+  if(!status)return null;
+  const cls = status==="saving"?"saving":status==="saved"?"saved":"error";
+  const txt = status==="saving"?"☁️ Saving to Google Sheets...":status==="saved"?"✅ Synced":"❌ Sync error";
+  return <div className={`syncing-badge ${cls}`}>{txt}</div>;
+}
+
+/* ─── Alerts Panel ─── */
+function AlertsSummaryPanel({students, records}) {
+  const allAlerts = useMemo(()=>{
+    const res=[]; for(const s of students.filter(s=>s.visible)){const a=getStudentAlerts(s.name,records);if(a.length>0)res.push({student:s,alerts:a,highest:getHighestAlert(a)});}
+    const o={purple:0,red:1,yellow:2};res.sort((a,b)=>(o[a.highest]??9)-(o[b.highest]??9));return res;
+  },[students,records]);
+  if(allAlerts.length===0)return null;
+  return <div style={{background:"#fff",borderRadius:16,border:"1px solid #EEEEF2",overflow:"hidden",marginBottom:24}}>
+    <div style={{padding:"14px 24px",borderBottom:"1px solid #EEEEF2",background:"linear-gradient(135deg,#FFFBF0,#FFF5F5,#F8F0FF)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:18}}>🚨</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:800}}>Alerts</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"#888"}}>{allAlerts.length} flagged</span></div>
+    </div>
+    <div style={{maxHeight:200,overflowY:"auto"}}>
+      {allAlerts.map(({student:s,alerts,highest})=>{const a=ALERT_LEVELS[highest];return <div key={s.name} style={{padding:"10px 24px",borderBottom:"1px solid #F5F5F8",display:"flex",alignItems:"center",gap:12,borderLeft:`4px solid ${a.border}`,background:`${a.bg}40`}}>
+        <div style={{width:32,height:32,borderRadius:"50%",background:a.bg,border:`2px solid ${a.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>{a.icon}</div>
+        <div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700}}>{s.name}</span><AlertBadge level={highest} compact/></div><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#888",marginTop:1}}>{alerts.map(al=>al.message).join(" · ")}</div></div>
+      </div>;})}
+    </div>
+  </div>;
+}
+
+const thStyle={fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",padding:"12px 10px",textAlign:"center",whiteSpace:"nowrap"};
+const tdStyle={fontFamily:"'DM Sans',sans-serif",fontSize:14,padding:"10px",textAlign:"center",verticalAlign:"middle"};
+
+/* ═══════════════ SETUP SCREEN ═══════════════ */
+function SetupScreen({onSave}) {
+  const [url, setUrl] = useState("");
+  return <div className="setup-screen">
+    <h1>📚 Assignment Tracker Setup</h1>
+    <p>To connect this app to your Google Sheet, you need to paste your <strong>Google Apps Script Web App URL</strong> below.</p>
+    <div className="step"><span className="step-num">1</span><strong>Create a Google Sheet</strong> with a <code>Students</code> tab (columns: Student Name, School Name, Current Grade, Math Level, Chinese Level, Status)</div>
+    <div className="step"><span className="step-num">2</span><strong>Open Extensions → Apps Script</strong> in your Google Sheet, paste the provided script code, and save</div>
+    <div className="step"><span className="step-num">3</span><strong>Deploy → New Deployment → Web App</strong>. Set "Execute as: Me" and "Who has access: Anyone". Copy the URL.</div>
+    <div className="step"><span className="step-num">4</span><strong>Paste the URL below</strong> and click Connect</div>
+    <input type="text" placeholder="https://script.google.com/macros/s/XXXX.../exec" value={url} onChange={e=>setUrl(e.target.value)} />
+    <button className="btn" onClick={()=>{if(url.trim()){setApiUrl(url.trim());onSave();}}} disabled={!url.trim()}>🔗 Connect to Google Sheets</button>
+    <p style={{marginTop:20,fontSize:12,color:"#999"}}>This URL is saved in your browser. Each user needs to enter it once.</p>
+  </div>;
+}
+
+/* ═══════════════ MAIN PAGE ═══════════════ */
+function MainPage({students, records, onToggle, onSelectStudent, weekOffset, setWeekOffset, onRefresh}) {
+  const todayKey=getDayKey(); const weekDates=getWeekDates(getWeekOffset(weekOffset));
+  const [selectedDay,setSelectedDay]=useState(todayKey);
+  const [showHidden,setShowHidden]=useState(false);
+  useEffect(()=>{weekOffset===0?setSelectedDay(todayKey):setSelectedDay(getWeekDates(getWeekOffset(weekOffset))[0]);},[weekOffset]);
+
+  const visibleStudents=students.filter(s=>s.visible); const hiddenStudents=students.filter(s=>!s.visible);
+  const isCatchUp=selectedDay!==todayKey&&selectedDay<todayKey;
+  const selectedDayLabel=new Date(selectedDay+"T00:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28,flexWrap:"wrap",gap:16}}>
+      <div>
+        <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:32,fontWeight:800,color:"#1A1A2E",margin:0}}>📚 Assignment Tracker</h1>
+        <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,color:"#888",margin:"6px 0 0"}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</p>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10}}>
+        <WeekNavigator weekOffset={weekOffset} setWeekOffset={setWeekOffset}/>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button onClick={onRefresh} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,border:"2px solid #4F5BD5",background:"#EEF0FF",color:"#4F5BD5",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700,cursor:"pointer"}}>🔄 Refresh</button>
+          {hiddenStudents.length>0&&<button onClick={()=>setShowHidden(!showHidden)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,border:`2px solid ${showHidden?"#D5944F":"#E0E0E8"}`,background:showHidden?"#FFF8EE":"#fff",color:showHidden?"#B8600A":"#666",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700,cursor:"pointer"}}>{hiddenStudents.length} Hidden</button>}
+        </div>
+      </div>
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:24}}>
+      {[{l:"Active",v:visibleStudents.length,c:"#4F5BD5",i:"👥"},{l:"Hidden",v:hiddenStudents.length,c:"#B8600A",i:"👁‍🗨"},{l:"Today Done",v:visibleStudents.filter(s=>isDayCompleted(records[s.name]?.[todayKey])).length,c:"#38A169",i:"✅",m:visibleStudents.length},{l:"Week Done",v:visibleStudents.filter(s=>isWeekCompletedFromDates(records[s.name],weekDates)).length,c:"#D5944F",i:"🏆",m:visibleStudents.length}].map(st=><div key={st.l} style={{background:"#fff",borderRadius:14,padding:"14px 18px",border:"1px solid #EEEEF2"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:18}}>{st.i}</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#888",fontWeight:700,textTransform:"uppercase"}}>{st.l}</span></div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:800,color:st.c,marginTop:2}}>{st.v}{st.m!==undefined&&<span style={{fontSize:13,color:"#bbb",fontWeight:400,fontFamily:"'DM Sans',sans-serif"}}>/{st.m}</span>}</div>
+      </div>)}
+    </div>
+
+    <AlertsSummaryPanel students={students} records={records}/>
+    <DayPicker weekDates={weekDates} selectedDay={selectedDay} onSelectDay={setSelectedDay}/>
+
+    <div style={{background:"#fff",borderRadius:16,border:isCatchUp?"2px solid #FFE0B2":"1px solid #EEEEF2",overflow:"hidden"}}>
+      <div style={{padding:"14px 24px",borderBottom:"1px solid #EEEEF2",background:isCatchUp?"linear-gradient(135deg,#FFF8EE,#FFFBF5)":"#FAFAFD",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700,color:isCatchUp?"#B8600A":"#666",textTransform:"uppercase"}}>{isCatchUp?`Catch-Up — ${selectedDayLabel}`:"Daily Check-in"}</span>
+        <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"#aaa"}}>{visibleStudents.length} active · ☁️ Google Sheets</span>
+      </div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead><tr style={{borderBottom:"2px solid #EEEEF2"}}>
+            <th style={thStyle}>#</th><th style={{...thStyle,textAlign:"left"}}>Student</th>
+            {CATEGORIES.map(c=><th key={c} style={thStyle}><span style={{color:CATEGORY_COLORS[c].active}}>{CATEGORY_ICONS[c]}</span> {c}</th>)}
+            <th style={thStyle}>{isCatchUp?selectedDayLabel:"Today"}</th><th style={thStyle}>Week</th>
+          </tr></thead>
+          <tbody>
+            {visibleStudents.map((s,i)=>{
+              const checked=CATEGORIES.filter(c=>!!records[s.name]?.[selectedDay]?.[c]).length;
+              const wd=countCompletedDays(records[s.name],weekDates);
+              const alerts=getStudentAlerts(s.name,records);const h=getHighestAlert(alerts);const ai=ALERT_LEVELS[h];const ha=h!=="none";
+              return <tr key={s.name} style={{borderBottom:"1px solid #F5F5F8",background:ha?`${ai.bg}30`:(i%2===0?"#fff":"#FCFCFE"),borderLeft:ha?`4px solid ${ai.border}`:"4px solid transparent"}}>
+                <td style={{...tdStyle,color:"#bbb",fontWeight:600,width:40}}>{i+1}</td>
+                <td style={{...tdStyle,textAlign:"left"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <button onClick={()=>onSelectStudent(s)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:700,color:"#1A1A2E",padding:0,borderBottom:"2px solid transparent"}} onMouseEnter={e=>{e.target.style.color="#4F5BD5";e.target.style.borderBottomColor="#4F5BD5";}} onMouseLeave={e=>{e.target.style.color="#1A1A2E";e.target.style.borderBottomColor="transparent";}}>{s.name}</button>
+                    {ha&&<AlertBadge level={h} compact/>}
+                  </div>
+                  <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#aaa",marginTop:1}}>{s.school} · {s.grade}</div>
+                </td>
+                {CATEGORIES.map(cat=><td key={cat} style={tdStyle}><CategoryButton category={cat} checked={!!records[s.name]?.[selectedDay]?.[cat]} onToggle={()=>onToggle(s.name,selectedDay,cat)}/></td>)}
+                <td style={tdStyle}><StatusBadge completed={checked>=3} label={`${checked}/4`}/></td>
+                <td style={tdStyle}><StatusBadge completed={wd>=4} label={`${wd}/5`}/></td>
+              </tr>;
+            })}
+            {showHidden&&hiddenStudents.length>0&&<><tr><td colSpan={8} style={{padding:"10px 24px",background:"#FFF8EE",fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:700,color:"#B8600A",textTransform:"uppercase",borderTop:"2px dashed #FFE0B2"}}>Hidden Students</td></tr>
+            {hiddenStudents.map((s,i)=><tr key={s.name} style={{borderBottom:"1px solid #F5F5F8",background:"#FAFAF5",opacity:0.7}}>
+              <td style={{...tdStyle,color:"#bbb",fontWeight:600}}>{i+1}</td>
+              <td style={{...tdStyle,textAlign:"left"}}><span style={{textDecoration:"line-through",color:"#999"}}>{s.name}</span><div style={{fontSize:11,color:"#bbb"}}>{s.school}</div></td>
+              {CATEGORIES.map(cat=><td key={cat} style={tdStyle}>—</td>)}
+              <td style={tdStyle}>—</td><td style={tdStyle}>—</td>
+            </tr>)}</>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:16,marginTop:18,padding:"14px 20px",background:"#fff",borderRadius:12,border:"1px solid #EEEEF2"}}>
+      <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#666"}}>3/4 daily = ✅ · 4/5 weekly = ✅ · 📅 Catch up past days · ☁️ Auto-synced to Google Sheets</span>
+    </div>
+  </div>;
+}
+
+/* ═══════════════ STUDENT PAGE ═══════════════ */
+function StudentPage({student, records, onToggle, onBack, weekOffset, setWeekOffset}) {
+  const todayKey=getDayKey(); const weekDates=getWeekDates(getWeekOffset(weekOffset));
+  const [selectedDay,setSelectedDay]=useState(weekOffset===0?todayKey:weekDates[0]);
+  useEffect(()=>{weekOffset===0?setSelectedDay(todayKey):setSelectedDay(getWeekDates(getWeekOffset(weekOffset))[0]);},[weekOffset]);
+  const alerts=useMemo(()=>getStudentAlerts(student.name,records),[student.name,records]);
+  const isCatchUp=selectedDay!==todayKey&&selectedDay<todayKey;
+
+  const weeksSummary=useMemo(()=>Array.from({length:4},(_,i)=>{
+    const wk=getWeekOffset(weekOffset-i);const dates=getWeekDates(wk);let cd=0;
+    const dd=dates.map(day=>{const cats=records[student.name]?.[day]||{};const done=CATEGORIES.map(c=>!!cats[c]);const count=done.filter(Boolean).length;const ic=count>=3;if(ic)cd++;return{day,done,count,isComplete:ic};});
+    return{weekKey:wk,dates,dayDetails:dd,completedDays:cd,weekComplete:cd>=4};
+  }),[student.name,records,weekOffset]);
+  const cw=weeksSummary[0];
+  const allDays=Object.keys(records[student.name]||{});const tt=allDays.length;const tc=allDays.filter(d=>isDayCompleted(records[student.name]?.[d])).length;
+
+  return <div>
+    <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,color:"#4F5BD5",padding:0,marginBottom:16,display:"flex",alignItems:"center",gap:6}}>◂ Back to Roster</button>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:16}}>
+        <div style={{width:56,height:56,borderRadius:"50%",background:alerts.length>0?`linear-gradient(135deg,${ALERT_LEVELS[getHighestAlert(alerts)].border},${ALERT_LEVELS[getHighestAlert(alerts)].color}88)`:"linear-gradient(135deg,#4F5BD5,#7B68EE)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:800}}>{student.name.charAt(0)}</div>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:800,color:"#1A1A2E",margin:0}}>{student.name}</h2>{alerts.length>0&&<AlertBadge level={getHighestAlert(alerts)}/>}</div>
+          <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:"#888",margin:"2px 0 0"}}>{student.school} · Grade {student.grade}</p>
+        </div>
+      </div>
+      <WeekNavigator weekOffset={weekOffset} setWeekOffset={setWeekOffset}/>
+    </div>
+
+    {alerts.length>0&&<AlertBanner alerts={alerts} studentName={student.name}/>}
+
+    <div style={{background:"#fff",borderRadius:14,padding:"18px 22px",border:"1px solid #EEEEF2",marginBottom:20,display:"flex",flexWrap:"wrap",gap:24}}>
+      {[{l:"School",v:student.school,i:"🏫"},{l:"Grade",v:student.grade,i:"🎓"},{l:"Math",v:student.mathLevel,i:"∑"},{l:"Chinese",v:student.chineseLevel,i:"字"}].map(x=><div key={x.l} style={{flex:"1 1 140px"}}><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>{x.i} {x.l}</div><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:700,color:"#1A1A2E",marginTop:2}}>{x.v}</div></div>)}
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:24}}>
+      {[{l:"This Week",v:`${cw.completedDays}/5`,d:cw.weekComplete,c:"#4F5BD5"},{l:"Tracked",v:tt,d:null,c:"#666"},{l:"Completed",v:tc,d:null,c:"#38A169"},{l:"Rate",v:tt>0?Math.round((tc/tt)*100)+"%":"—",d:null,c:"#D5944F"}].map(s=><div key={s.l} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:"1px solid #EEEEF2"}}>
+        <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>{s.l}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}><span style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:800,color:s.c}}>{s.v}</span>{s.d!==null&&<StatusBadge completed={s.d} label={s.d?"PASS":"IN PROGRESS"}/>}</div>
+      </div>)}
+    </div>
+
+    <DayPicker weekDates={weekDates} selectedDay={selectedDay} onSelectDay={setSelectedDay} label="Edit check-in for:"/>
+
+    <div style={{background:"#fff",borderRadius:16,border:isCatchUp?"2px solid #FFE0B2":"1px solid #EEEEF2",padding:24,marginBottom:24}}>
+      <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:700,color:"#666",textTransform:"uppercase",margin:"0 0 16px"}}>Weekly Detail — {cw.weekComplete?"✅ Completed":`${cw.completedDays}/5 (need 4)`}</h3>
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
+        <thead><tr><th style={thStyle}>Day</th>{CATEGORIES.map(c=><th key={c} style={thStyle}><span style={{color:CATEGORY_COLORS[c].active}}>{CATEGORY_ICONS[c]}</span> {c}</th>)}<th style={thStyle}>Status</th></tr></thead>
+        <tbody>{cw.dayDetails.map((dd,i)=>{
+          const isToday=dd.day===todayKey;const isEdit=dd.day===selectedDay;
+          return <tr key={dd.day} onClick={()=>setSelectedDay(dd.day)} style={{borderBottom:"1px solid #F5F5F8",background:isEdit?(isCatchUp?"#FFF8EE":"#F0F0FF"):(isToday?"#F5F5FF":(i%2===0?"#fff":"#FCFCFE")),cursor:"pointer",borderLeft:isEdit?`4px solid ${isCatchUp?"#D5944F":"#4F5BD5"}`:"4px solid transparent"}}>
+            <td style={{...tdStyle,fontWeight:700,textAlign:"left",color:isEdit?(isCatchUp?"#B8600A":"#4F5BD5"):(isToday?"#4F5BD5":"#444")}}>
+              {WEEKDAYS[i]}<span style={{fontWeight:400,color:"#bbb",marginLeft:6,fontSize:12}}>{new Date(dd.day+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+              {isToday&&<span style={{marginLeft:8,fontSize:9,fontWeight:800,color:"#4F5BD5",background:"#EEF0FF",padding:"2px 6px",borderRadius:4}}>TODAY</span>}
+              {isEdit&&!isToday&&<span style={{marginLeft:8,fontSize:9,fontWeight:800,color:"#B8600A",background:"#FFF3E6",padding:"2px 6px",borderRadius:4}}>EDITING</span>}
+            </td>
+            {CATEGORIES.map((cat,ci)=><td key={cat} style={tdStyle}>
+              {isEdit?<CategoryButton category={cat} checked={dd.done[ci]} onToggle={()=>onToggle(student.name,dd.day,cat)} small/>:
+              <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:8,background:dd.done[ci]?CATEGORY_COLORS[cat].active:"#F5F5F8",color:dd.done[ci]?"#fff":"#ccc",fontSize:14,fontWeight:700}}>{dd.done[ci]?"✓":"—"}</span>}
+            </td>)}
+            <td style={tdStyle}><StatusBadge completed={dd.isComplete} label={`${dd.count}/4`}/></td>
+          </tr>;
+        })}</tbody>
+      </table></div>
+    </div>
+
+    <div style={{background:"#fff",borderRadius:16,border:"1px solid #EEEEF2",padding:24}}>
+      <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:700,color:"#666",textTransform:"uppercase",margin:"0 0 16px"}}>4-Week Progress</h3>
+      <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+        {weeksSummary.map((ws,wi)=>{const rc=ws.weekComplete?"#38A169":"#E74C3C";return <div key={ws.weekKey} style={{flex:"1 1 130px",minWidth:130,background:wi===0?"#FAFAFF":"#FAFAFA",borderRadius:12,padding:14,border:!ws.weekComplete&&wi>0?"2px solid #FFD0D0":(wi===0?"2px solid #4F5BD520":"1px solid #EEEEF2"),textAlign:"center"}}>
+          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",marginBottom:8}}>{wi===0?"Current":`Wk ${new Date(ws.dates[0]+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}`}</div>
+          <div style={{position:"relative",display:"inline-block"}}><ProgressRing value={ws.completedDays} max={5} color={rc}/><div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:800,color:rc}}>{ws.completedDays}/5</div></div>
+          <div style={{marginTop:6}}><StatusBadge completed={ws.weekComplete} label={ws.weekComplete?"PASS":"INCOMPLETE"}/></div>
+          <div style={{display:"flex",justifyContent:"center",gap:4,marginTop:6}}>{ws.dayDetails.map((dd,di)=><div key={di} style={{width:10,height:10,borderRadius:"50%",background:dd.isComplete?"#38A169":(dd.count>0?"#FFD166":"#E8E8EE")}}/>)}</div>
+        </div>;})}
+      </div>
+    </div>
+  </div>;
+}
+
+function AlertBanner({alerts, studentName}) {
+  if(!alerts||alerts.length===0)return null;const h=getHighestAlert(alerts);const a=ALERT_LEVELS[h];
+  return <div style={{background:a.bg,border:`2px solid ${a.border}`,borderRadius:14,padding:"16px 20px",marginBottom:20}}>
+    <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:22}}>{a.icon}</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:800,color:a.color,textTransform:"uppercase"}}>{a.label} Alert — {studentName}</span></div>
+    {alerts.map((al,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginTop:4,paddingLeft:32}}><span style={{fontSize:10}}>{ALERT_LEVELS[al.level].icon}</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:ALERT_LEVELS[al.level].color,fontWeight:600}}>{al.message}</span></div>)}
+  </div>;
+}
+
+/* ═══════════════ APP ROOT ═══════════════ */
+function App() {
+  const [configured, setConfigured] = useState(!!getApiUrl());
+  const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState([]);
+  const [records, setRecords] = useState({});
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const syncTimer = useRef(null);
+
+  const fetchData = useCallback(async () => {
+    if (!getApiUrl()) return;
+    setLoading(true);
+    try {
+      const [studentsRes, checkInsRes] = await Promise.all([apiGet("getStudents"), apiGet("getCheckIns")]);
+      if (studentsRes.students) {
+        setStudents(studentsRes.students.map(s => ({
+          ...s, visible: (s.status || "Active").toLowerCase() !== "hidden"
+        })));
+      }
+      if (checkInsRes.checkIns) setRecords(checkInsRes.checkIns);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { if (configured) fetchData(); }, [configured, fetchData]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    if (!configured) return;
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [configured, fetchData]);
+
+  const handleToggle = useCallback(async (studentName, date, category) => {
+    // Optimistic update
+    setRecords(prev => {
+      const next = { ...prev };
+      if (!next[studentName]) next[studentName] = {};
+      if (!next[studentName][date]) next[studentName][date] = {};
+      next[studentName][date][category] = !next[studentName][date][category];
+      return next;
+    });
+
+    // Sync to Google Sheets
+    setSyncStatus("saving");
+    try {
+      const currentVal = records[studentName]?.[date]?.[category];
+      await apiPost({ action: "toggleCheckIn", studentName, date, category, checked: !currentVal });
+      setSyncStatus("saved");
+    } catch (err) {
+      setSyncStatus("error");
+    }
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => setSyncStatus(null), 2000);
+  }, [records]);
+
+  if (!configured) return <div className="container"><SetupScreen onSave={() => setConfigured(true)} /></div>;
+
+  if (loading) return <div className="container"><div className="loading-screen">
+    <div className="spinner"></div>
+    <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,color:"#888"}}>Loading from Google Sheets...</p>
+  </div></div>;
+
+  return <div className="container">
+    <SyncBadge status={syncStatus} />
+    {selectedStudent ?
+      <StudentPage student={selectedStudent} records={records} onToggle={handleToggle} onBack={()=>setSelectedStudent(null)} weekOffset={weekOffset} setWeekOffset={setWeekOffset}/> :
+      <MainPage students={students} records={records} onToggle={handleToggle} onSelectStudent={setSelectedStudent} weekOffset={weekOffset} setWeekOffset={setWeekOffset} onRefresh={fetchData}/>
+    }
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
