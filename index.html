@@ -7,22 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet">
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',sans-serif;background:linear-gradient(180deg,#F6F6FB 0%,#EDEDF5 100%);min-height:100vh}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.75}}
-@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
-.container{max-width:1140px;margin:0 auto;padding:32px 20px}
-.skeleton{border-radius:8px;background:linear-gradient(90deg,#EEEEF2 25%,#F5F5F8 50%,#EEEEF2 75%);background-size:800px 100%;animation:shimmer 1.5s ease-in-out infinite}
-.sk-title{height:32px;width:300px;margin-bottom:6px}.sk-subtitle{height:16px;width:220px;margin-bottom:24px}
-.sk-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
-.sk-stat{height:80px;border-radius:14px}.sk-table{height:400px;border-radius:16px;margin-top:20px}.sk-daypicker{height:64px;border-radius:14px;margin-bottom:20px}
-.app-content{animation:slideUp 0.4s ease}
-.syncing-badge{position:fixed;top:16px;right:16px;z-index:999;display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;animation:fadeIn 0.2s;transition:opacity 0.3s}
-.syncing-badge.saving{background:#FFF8EE;color:#B8600A;border:1.5px solid #FFE0B2}
-.syncing-badge.saved{background:#E8F8EE;color:#1B7A3D;border:1.5px solid #B2F5C7}
-.syncing-badge.error{background:#FFF0F0;color:#D5564F;border:1.5px solid #FFC7C7}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;background:linear-gradient(180deg,#F6F6FB 0%,#EDEDF5 100%);min-height:100vh}@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.75}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}.container{max-width:1140px;margin:0 auto;padding:32px 20px}.skeleton{border-radius:8px;background:linear-gradient(90deg,#EEEEF2 25%,#F5F5F8 50%,#EEEEF2 75%);background-size:800px 100%;animation:shimmer 1.5s ease-in-out infinite}.sk-title{height:32px;width:300px;margin-bottom:6px}.sk-subtitle{height:16px;width:220px;margin-bottom:24px}.sk-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}.sk-stat{height:80px;border-radius:14px}.sk-table{height:400px;border-radius:16px;margin-top:20px}.sk-daypicker{height:64px;border-radius:14px;margin-bottom:20px}.app-content{animation:slideUp .4s ease}.syncing-badge{position:fixed;top:16px;right:16px;z-index:999;display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:700;animation:fadeIn .2s}.syncing-badge.saving{background:#FFF8EE;color:#B8600A;border:1.5px solid #FFE0B2}.syncing-badge.saved{background:#E8F8EE;color:#1B7A3D;border:1.5px solid #B2F5C7}.syncing-badge.error{background:#FFF0F0;color:#D5564F;border:1.5px solid #FFC7C7}.modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(20,20,40,.45);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px}.modal-box{background:#fff;border-radius:20px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.18)}.modal-header{padding:20px 28px;border-bottom:1px solid #EEEEF2;display:flex;justify-content:space-between;align-items:center}.modal-body{padding:24px 28px}.week-select{padding:9px 14px;border-radius:10px;border:2px solid #E8E8EE;font-size:13px;font-family:'DM Sans',sans-serif;color:#1A1A2E;font-weight:600;outline:none;background:#fff;cursor:pointer;min-width:280px}.week-select:focus{border-color:#4F5BD5}
 </style>
 </head>
 <body>
@@ -31,390 +16,65 @@ body{font-family:'DM Sans',sans-serif;background:linear-gradient(180deg,#F6F6FB 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script type="text/babel">
-const {useState,useEffect,useMemo,useRef,useCallback} = React;
-
-const API_URL = "https://script.google.com/macros/s/AKfycbzr2z1ERKXAzYfyF2Ex3MQNjTEs-g6AxhmhfTZyhrkiz3znfjyuitERlpOKyzvR-fas/exec";
-
+const {useState,useEffect,useMemo,useRef,useCallback}=React;
+const API_URL="https://script.google.com/macros/s/AKfycbzr2z1ERKXAzYfyF2Ex3MQNjTEs-g6AxhmhfTZyhrkiz3znfjyuitERlpOKyzvR-fas/exec";
 const CATEGORIES=["Math","Chinese","Journal","Homework"];
 const CATEGORY_ICONS={Math:"∑",Chinese:"字",Journal:"✎",Homework:"📋"};
 const CATEGORY_COLORS={Math:{bg:"#EEF0FF",active:"#4F5BD5",border:"#C7CAFF"},Chinese:{bg:"#FFF0F0",active:"#D5564F",border:"#FFC7C7"},Journal:{bg:"#F0FFF4",active:"#38A169",border:"#B2F5C7"},Homework:{bg:"#FFF8EE",active:"#D5944F",border:"#FFE0B2"}};
 const WEEKDAYS=["Mon","Tue","Wed","Thu","Fri"];
-
-function getWeekKey(date=new Date()){const d=new Date(date);d.setHours(0,0,0,0);const day=d.getDay();d.setDate(d.getDate()-day+(day===0?-6:1));return d.toISOString().split("T")[0]}
-function getDayKey(date=new Date()){return date.toISOString().split("T")[0]}
-function getWeekDates(wk){const s=new Date(wk+"T00:00:00");return Array.from({length:5},(_,i)=>{const d=new Date(s);d.setDate(d.getDate()+i);return d.toISOString().split("T")[0]})}
-function getWeekOffset(o){const d=new Date();d.setDate(d.getDate()+o*7);return getWeekKey(d)}
-function isDayCompleted(cats){if(!cats)return false;return Object.values(cats).filter(Boolean).length>=3}
-function isWeekCompletedFromDates(sr,wd){let c=0;for(const d of wd)if(isDayCompleted(sr?.[d]))c++;return c>=4}
+const UNIT_WEEKS=[{key:"pre",label:"学前复习",type:"review"},{key:"w1",label:"Week 1",type:"regular"},{key:"w2",label:"Week 2",type:"regular"},{key:"w3",label:"Week 3",type:"regular"},{key:"w4",label:"Week 4",type:"regular"},{key:"mid",label:"期中复习",type:"review"},{key:"w5",label:"Week 5",type:"regular"},{key:"w6",label:"Week 6",type:"regular"},{key:"w7",label:"Week 7",type:"regular"},{key:"w8",label:"Week 8",type:"regular"},{key:"end",label:"期末复习",type:"review"}];
+function getWeekDatesFromMonday(mon){const s=new Date(mon+"T00:00:00");return Array.from({length:5},(_,i)=>{const d=new Date(s);d.setDate(d.getDate()+i);return d.toISOString().split("T")[0]})}
+function generateAcademicWeeks(startDate,breaks=[]){if(!startDate)return[];const breakSet=new Set(breaks);const weeks=[];let cur=new Date(startDate+"T00:00:00");for(let u=1;u<=3;u++){for(const uw of UNIT_WEEKS){while(breakSet.has(cur.toISOString().split("T")[0])){const bm=cur.toISOString().split("T")[0];weeks.push({unit:u,...uw,weekStart:bm,isBreak:true,label:"Break",fullLabel:`Break (${new Date(bm+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})})`,dates:getWeekDatesFromMonday(bm),type:"break"});cur.setDate(cur.getDate()+7)}const mon=cur.toISOString().split("T")[0];weeks.push({unit:u,...uw,weekStart:mon,isBreak:false,fullLabel:`Unit ${u} - ${uw.label}`,dates:getWeekDatesFromMonday(mon)});cur.setDate(cur.getDate()+7)}}return weeks}
+function getDayKey(d=new Date()){return d.toISOString().split("T")[0]}
+function isDayCompleted(c){if(!c)return false;return Object.values(c).filter(Boolean).length>=3}
 function countCompletedDays(sr,wd){let c=0;for(const d of wd)if(isDayCompleted(sr?.[d]))c++;return c}
-
 const ALERT_LEVELS={none:{color:"transparent",bg:"transparent",label:"",icon:"",border:"transparent"},yellow:{color:"#B8860B",bg:"#FFF8DC",border:"#FFE066",label:"Concern",icon:"⚠️"},red:{color:"#C0392B",bg:"#FFF0F0",border:"#FF8A8A",label:"At Risk",icon:"🔴"},purple:{color:"#6C3483",bg:"#F5EEFF",border:"#C39BFF",label:"Critical",icon:"🟣"}};
-function getStudentAlerts(name,records){
-  const sr=records[name]||{};const alerts=[];const today=new Date();const todayDay=today.getDay();
-  const cwd=getWeekDates(getWeekKey(today));const cc=countCompletedDays(sr,cwd);
-  const todayStr=getDayKey(today);const rem=cwd.filter(d=>d>=todayStr).length;const best=cc+rem;
-  if(todayDay>=5&&cc<4)alerts.push({level:"yellow",message:`Only ${cc}/4 days this week`});
-  else if(best<4&&todayDay>=1&&todayDay<=5)alerts.push({level:"yellow",message:`Can only reach ${best}/4 — at risk`});
-  const wr=[];for(let i=0;i<4;i++){const ds=getWeekDates(getWeekOffset(-i));wr.push({isComplete:countCompletedDays(sr,ds)>=4})}
-  const inc=wr.filter(w=>!w.isComplete).length;
-  if(inc>=2)alerts.push({level:"red",message:`${inc}/4 weeks incomplete`});
-  if(wr.length===4&&wr.every(w=>!w.isComplete))alerts.push({level:"purple",message:"4 weeks in a row"});
-  return alerts;
-}
+function getStudentAlerts(name,records,aw){if(!aw||aw.length===0)return[];const sr=records[name]||{};const alerts=[];const today=new Date();const ts=getDayKey(today);const ci=aw.findIndex(w=>!w.isBreak&&w.dates[0]<=ts&&w.dates[4]>=ts);if(ci===-1)return[];const cw=aw[ci];const cc=countCompletedDays(sr,cw.dates);const td=today.getDay();const rem=cw.dates.filter(d=>d>=ts).length;const best=cc+rem;if(td>=5&&cc<4)alerts.push({level:"yellow",message:`Only ${cc}/4 days this week`});else if(best<4&&td>=1&&td<=5)alerts.push({level:"yellow",message:`Can only reach ${best}/4`});const rw=aw.filter(w=>!w.isBreak&&w.dates[4]<ts).slice(-4);if(rw.length>=2){const inc=rw.filter(w=>countCompletedDays(sr,w.dates)<4).length;if(inc>=2)alerts.push({level:"red",message:`${inc}/${rw.length} recent weeks incomplete`});if(rw.length>=4&&rw.every(w=>countCompletedDays(sr,w.dates)<4))alerts.push({level:"purple",message:"4 weeks in a row"})}return alerts}
 function getHighestAlert(a){if(a.some(x=>x.level==="purple"))return"purple";if(a.some(x=>x.level==="red"))return"red";if(a.some(x=>x.level==="yellow"))return"yellow";return"none"}
-
-async function apiGet(action){const res=await fetch(`${API_URL}?action=${action}`);return res.json()}
-async function apiPost(data){const res=await fetch(API_URL,{method:"POST",body:JSON.stringify(data)});return res.json()}
-
-function SkeletonScreen(){
-  return <div className="container"><div style={{display:"flex",justifyContent:"space-between",marginBottom:28}}><div><div className="skeleton sk-title"/><div className="skeleton sk-subtitle"/></div></div>
-    <div className="sk-stats"><div className="skeleton sk-stat"/><div className="skeleton sk-stat"/><div className="skeleton sk-stat"/><div className="skeleton sk-stat"/></div>
-    <div className="skeleton sk-daypicker"/><div className="skeleton sk-table"/></div>;
-}
-
-/* ─── Shared Components ─── */
-function CategoryButton({category,checked,onToggle,small}){const co=CATEGORY_COLORS[category];return <button onClick={onToggle} style={{display:"inline-flex",alignItems:"center",gap:small?4:6,padding:small?"4px 10px":"6px 14px",borderRadius:8,border:`2px solid ${checked?co.active:co.border}`,background:checked?co.active:co.bg,color:checked?"#fff":co.active,fontWeight:600,fontSize:small?12:13,cursor:"pointer",transition:"all 0.2s",fontFamily:"'DM Sans',sans-serif",boxShadow:checked?`0 2px 8px ${co.active}40`:"none"}}><span style={{fontSize:small?13:15}}>{checked?"✓":CATEGORY_ICONS[category]}</span>{category}</button>}
-function StatusBadge({completed,label}){return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:completed?"#E8F8EE":"#FFF3E6",color:completed?"#1B7A3D":"#B8600A",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase"}}><span style={{fontSize:8}}>{completed?"●":"○"}</span>{label}</span>}
+async function apiGet(a){const r=await fetch(`${API_URL}?action=${a}`);return r.json()}
+async function apiPost(d){const r=await fetch(API_URL,{method:"POST",body:JSON.stringify(d)});return r.json()}
+function SkeletonScreen(){return <div className="container"><div style={{display:"flex",justifyContent:"space-between",marginBottom:28}}><div><div className="skeleton sk-title"/><div className="skeleton sk-subtitle"/></div></div><div className="sk-stats"><div className="skeleton sk-stat"/><div className="skeleton sk-stat"/><div className="skeleton sk-stat"/><div className="skeleton sk-stat"/></div><div className="skeleton sk-daypicker"/><div className="skeleton sk-table"/></div>}
+function CategoryButton({category:cat,checked,onToggle,small}){const co=CATEGORY_COLORS[cat];return <button onClick={onToggle} style={{display:"inline-flex",alignItems:"center",gap:small?4:6,padding:small?"4px 10px":"6px 14px",borderRadius:8,border:`2px solid ${checked?co.active:co.border}`,background:checked?co.active:co.bg,color:checked?"#fff":co.active,fontWeight:600,fontSize:small?12:13,cursor:"pointer",transition:"all .2s",fontFamily:"'DM Sans',sans-serif",boxShadow:checked?`0 2px 8px ${co.active}40`:"none"}}><span style={{fontSize:small?13:15}}>{checked?"✓":CATEGORY_ICONS[cat]}</span>{cat}</button>}
+function StatusBadge({completed:ok,label}){return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:ok?"#E8F8EE":"#FFF3E6",color:ok?"#1B7A3D":"#B8600A",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase"}}><span style={{fontSize:8}}>{ok?"●":"○"}</span>{label}</span>}
 function AlertBadge({level,compact}){if(level==="none")return null;const a=ALERT_LEVELS[level];return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:compact?"2px 8px":"4px 12px",borderRadius:20,fontSize:compact?10:11,fontWeight:800,background:a.bg,color:a.color,border:`1.5px solid ${a.border}`,fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase"}}><span style={{fontSize:compact?10:12}}>{a.icon}</span>{a.label}</span>}
-function ProgressRing({value,max,size=65,strokeWidth=6,color="#4F5BD5"}){const r=(size-strokeWidth)/2;const c=2*Math.PI*r;const p=(value/max)*c;return <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}><circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#F0F0F5" strokeWidth={strokeWidth}/><circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray={c} strokeDashoffset={c-p} strokeLinecap="round" style={{transition:"stroke-dashoffset 0.6s"}}/></svg>}
-function WeekNavigator({weekOffset,setWeekOffset}){const ds=getWeekDates(getWeekOffset(weekOffset));const fmt=d=>new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});return <div style={{display:"flex",alignItems:"center",gap:12}}><button onClick={()=>setWeekOffset(weekOffset-1)} style={{width:32,height:32,borderRadius:"50%",border:"2px solid #E0E0E8",background:"#fff",cursor:"pointer",fontSize:14,color:"#666",display:"flex",alignItems:"center",justifyContent:"center"}}>◂</button><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,color:"#444",minWidth:160,textAlign:"center"}}>{fmt(ds[0])} — {fmt(ds[4])}{weekOffset===0&&<span style={{color:"#4F5BD5",marginLeft:6,fontSize:11}}>THIS WEEK</span>}</span><button onClick={()=>setWeekOffset(weekOffset+1)} disabled={weekOffset>=0} style={{width:32,height:32,borderRadius:"50%",border:"2px solid #E0E0E8",background:"#fff",cursor:"pointer",fontSize:14,color:"#666",display:"flex",alignItems:"center",justifyContent:"center"}}>▸</button></div>}
-function DayPicker({weekDates,selectedDay,onSelectDay,label}){const todayKey=getDayKey();return <div style={{background:"#fff",borderRadius:14,border:"1px solid #EEEEF2",padding:"12px 16px",marginBottom:20}}><div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📅</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:700,color:"#666",textTransform:"uppercase"}}>{label||"Check-in for:"}</span></div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{weekDates.map((ds,i)=>{const isToday=ds===todayKey;const isSel=ds===selectedDay;const isPast=ds<todayKey;const isFut=ds>todayKey;return <button key={ds} onClick={()=>onSelectDay(ds)} style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"8px 14px",borderRadius:10,cursor:"pointer",border:isSel?"2px solid #4F5BD5":"2px solid #E8E8EE",background:isSel?"linear-gradient(135deg,#4F5BD5,#7B68EE)":(isToday?"#F5F5FF":"#fff"),color:isSel?"#fff":(isFut?"#ccc":"#444"),fontFamily:"'DM Sans',sans-serif",opacity:isFut?0.5:1,minWidth:64,boxShadow:isSel?"0 3px 12px rgba(79,91,213,0.3)":"none",position:"relative"}}><span style={{fontSize:12,fontWeight:800}}>{WEEKDAYS[i]}</span><span style={{fontSize:10,fontWeight:500,marginTop:1,opacity:isSel?0.9:0.7}}>{new Date(ds+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>{isToday&&!isSel&&<div style={{position:"absolute",top:-3,right:-3,width:8,height:8,borderRadius:"50%",background:"#4F5BD5",border:"2px solid #fff"}}/>}{isPast&&!isSel&&!isToday&&<div style={{position:"absolute",bottom:-2,left:"50%",transform:"translateX(-50%)",fontSize:7,color:"#D5944F",fontWeight:800}}>CATCH UP</div>}</button>})}</div>{selectedDay!==todayKey&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,background:"#FFF8EE",border:"1.5px solid #FFE0B2"}}><span style={{fontSize:12}}>⏪</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#B8600A"}}>Catch-Up: {new Date(selectedDay+"T00:00:00").toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</span><button onClick={()=>onSelectDay(todayKey)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#4F5BD5",textDecoration:"underline",padding:0}}>→ Today</button></div>}</div></div>}
-function SyncBadge({status}){if(!status)return null;const cls=status==="saving"?"saving":status==="saved"?"saved":"error";const txt=status==="saving"?"☁️ Saving...":status==="saved"?"✅ Synced":"❌ Sync error";return <div className={`syncing-badge ${cls}`}>{txt}</div>}
-
-function AlertsSummaryPanel({students,records}){
-  const allAlerts=useMemo(()=>{const res=[];for(const s of students.filter(s=>s.visible)){const a=getStudentAlerts(s.name,records);if(a.length>0)res.push({student:s,alerts:a,highest:getHighestAlert(a)})}const o={purple:0,red:1,yellow:2};res.sort((a,b)=>(o[a.highest]??9)-(o[b.highest]??9));return res},[students,records]);
-  if(allAlerts.length===0)return null;
-  return <div style={{background:"#fff",borderRadius:16,border:"1px solid #EEEEF2",overflow:"hidden",marginBottom:24}}>
-    <div style={{padding:"14px 24px",borderBottom:"1px solid #EEEEF2",background:"linear-gradient(135deg,#FFFBF0,#FFF5F5,#F8F0FF)",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:18}}>🚨</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:800}}>Alerts</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"#888"}}>{allAlerts.length} flagged</span></div></div>
-    <div style={{maxHeight:200,overflowY:"auto"}}>{allAlerts.map(({student:s,alerts,highest})=>{const a=ALERT_LEVELS[highest];return <div key={s.name} style={{padding:"10px 24px",borderBottom:"1px solid #F5F5F8",display:"flex",alignItems:"center",gap:12,borderLeft:`4px solid ${a.border}`,background:`${a.bg}40`}}><div style={{width:32,height:32,borderRadius:"50%",background:a.bg,border:`2px solid ${a.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>{a.icon}</div><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700}}>{s.name}</span><AlertBadge level={highest} compact/></div><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#888",marginTop:1}}>{alerts.map(al=>al.message).join(" · ")}</div></div></div>})}</div>
-  </div>;
-}
-
-const thStyle={fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:"0.06em",padding:"12px 10px",textAlign:"center",whiteSpace:"nowrap"};
+function ProgressRing({value:v,max:m,size:s=65,strokeWidth:sw=6,color:cl="#4F5BD5"}){const r=(s-sw)/2;const c=2*Math.PI*r;const p=(v/m)*c;return <svg width={s} height={s} style={{transform:"rotate(-90deg)"}}><circle cx={s/2} cy={s/2} r={r} fill="none" stroke="#F0F0F5" strokeWidth={sw}/><circle cx={s/2} cy={s/2} r={r} fill="none" stroke={cl} strokeWidth={sw} strokeDasharray={c} strokeDashoffset={c-p} strokeLinecap="round" style={{transition:"stroke-dashoffset .6s"}}/></svg>}
+function SyncBadge({status}){if(!status)return null;return <div className={`syncing-badge ${status==="saving"?"saving":status==="saved"?"saved":"error"}`}>{status==="saving"?"☁️ Saving...":status==="saved"?"✅ Synced":"❌ Error"}</div>}
+/* Academic Week Selector */
+function AcademicWeekSelector({academicWeeks:aw,selectedIdx:si,onSelect}){if(!aw||aw.length===0)return null;const ts=getDayKey();const units={};aw.forEach((w,i)=>{const g=w.isBreak?"Breaks":`Unit ${w.unit}`;if(!units[g])units[g]=[];units[g].push({...w,idx:i})});const fm=d=>new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});return <select className="week-select" value={si} onChange={e=>onSelect(Number(e.target.value))}>{Object.entries(units).map(([g,ws])=><optgroup key={g} label={g}>{ws.map(w=>{const isCur=!w.isBreak&&w.dates[0]<=ts&&w.dates[4]>=ts;return <option key={w.idx} value={w.idx}>{w.isBreak?`🏖 Break — ${fm(w.dates[0])}`:`${w.fullLabel} (${fm(w.dates[0])}-${fm(w.dates[4])})${isCur?" ◀ NOW":""}`}</option>})}</optgroup>)}</select>}
+/* Day Picker */
+function DayPicker({weekDates:wd,selectedDay:sd,onSelectDay:osd,label:lb}){const tk=getDayKey();return <div style={{background:"#fff",borderRadius:14,border:"1px solid #EEEEF2",padding:"12px 16px",marginBottom:20}}><div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📅</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:700,color:"#666",textTransform:"uppercase"}}>{lb||"Check-in for:"}</span></div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{wd.map((ds,i)=>{const it=ds===tk,is=ds===sd,ip=ds<tk,ifu=ds>tk;return <button key={ds} onClick={()=>osd(ds)} style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"8px 14px",borderRadius:10,cursor:"pointer",border:is?"2px solid #4F5BD5":"2px solid #E8E8EE",background:is?"linear-gradient(135deg,#4F5BD5,#7B68EE)":(it?"#F5F5FF":"#fff"),color:is?"#fff":(ifu?"#ccc":"#444"),fontFamily:"'DM Sans',sans-serif",opacity:ifu?.5:1,minWidth:64,boxShadow:is?"0 3px 12px rgba(79,91,213,.3)":"none",position:"relative"}}><span style={{fontSize:12,fontWeight:800}}>{WEEKDAYS[i]}</span><span style={{fontSize:10,fontWeight:500,marginTop:1,opacity:is?.9:.7}}>{new Date(ds+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>{it&&!is&&<div style={{position:"absolute",top:-3,right:-3,width:8,height:8,borderRadius:"50%",background:"#4F5BD5",border:"2px solid #fff"}}/>}{ip&&!is&&!it&&<div style={{position:"absolute",bottom:-2,left:"50%",transform:"translateX(-50%)",fontSize:7,color:"#D5944F",fontWeight:800}}>CATCH UP</div>}</button>})}</div>{sd!==tk&&sd<tk&&<div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:8,background:"#FFF8EE",border:"1.5px solid #FFE0B2"}}><span style={{fontSize:12}}>⏪</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#B8600A"}}>Catch-Up</span><button onClick={()=>osd(tk)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#4F5BD5",textDecoration:"underline",padding:0}}>→ Today</button></div>}</div></div>}
+/* Calendar Setup Modal */
+function CalendarSetupModal({open,onClose,calConfig:cc,onSave}){const[sd,setSd]=useState(cc?.startDate||"");const[brk,setBrk]=useState(cc?.breaks?cc.breaks.split(",").filter(Boolean):[]);const[saving,setSaving]=useState(false);const preview=useMemo(()=>sd?generateAcademicWeeks(sd,brk):[],[sd,brk]);const toggleBrk=m=>setBrk(p=>p.includes(m)?p.filter(b=>b!==m):[...p,m]);const allMons=useMemo(()=>{if(!sd)return[];const ms=[];const d=new Date(sd+"T00:00:00");for(let i=0;i<52;i++){ms.push(d.toISOString().split("T")[0]);d.setDate(d.getDate()+7)}return ms},[sd]);const doSave=async()=>{setSaving(true);await apiPost({action:"saveCalendar",config:{startDate:sd,breaks:brk.join(",")}});onSave({startDate:sd,breaks:brk.join(",")});setSaving(false);onClose()};if(!open)return null;return <div className="modal-overlay" onClick={onClose}><div className="modal-box" style={{maxWidth:640}} onClick={e=>e.stopPropagation()}><div className="modal-header"><h3 style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:800,color:"#1A1A2E"}}>📅 Academic Calendar Setup</h3><button onClick={onClose} style={{width:32,height:32,borderRadius:"50%",border:"none",background:"#F5F5F8",cursor:"pointer",fontSize:16,color:"#999",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button></div><div className="modal-body"><div style={{marginBottom:20}}><label style={{display:"block",fontSize:12,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Unit 1 Start Date (Monday of 学前复习)</label><input type="date" value={sd} onChange={e=>setSd(e.target.value)} style={{padding:"10px 14px",borderRadius:10,border:"2px solid #E8E8EE",fontSize:14,fontFamily:"'DM Sans',sans-serif",outline:"none",width:"100%"}}/></div>{sd&&<><div style={{marginBottom:16}}><label style={{display:"block",fontSize:12,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Mark Break Weeks (click to toggle)</label><p style={{fontSize:11,color:"#999",marginBottom:8}}>Click any Monday to mark as break. Breaks are skipped in the academic sequence.</p><div style={{display:"flex",flexWrap:"wrap",gap:4,maxHeight:140,overflowY:"auto",padding:4}}>{allMons.map(m=>{const ib=brk.includes(m);return <button key={m} onClick={()=>toggleBrk(m)} style={{padding:"3px 8px",borderRadius:6,border:`1.5px solid ${ib?"#D5564F":"#E8E8EE"}`,background:ib?"#FFF0F0":"#fff",color:ib?"#D5564F":"#666",fontSize:10,fontFamily:"'DM Sans',sans-serif",fontWeight:ib?700:500,cursor:"pointer"}}>{ib?"🏖 ":""}{new Date(m+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</button>})}</div></div><div style={{marginBottom:20}}><label style={{display:"block",fontSize:12,fontWeight:700,color:"#666",textTransform:"uppercase",marginBottom:6}}>Preview ({preview.filter(w=>!w.isBreak).length} academic + {preview.filter(w=>w.isBreak).length} breaks)</label><div style={{maxHeight:200,overflowY:"auto",border:"1px solid #EEEEF2",borderRadius:10}}>{preview.map((w,i)=><div key={i} style={{padding:"5px 10px",borderBottom:"1px solid #F5F5F8",display:"flex",justifyContent:"space-between",background:w.isBreak?"#FFF0F0":(w.type==="review"?"#FFF8EE":"#fff"),fontSize:11}}><span style={{fontWeight:w.isBreak?500:700,color:w.isBreak?"#D5564F":(w.type==="review"?"#B8600A":"#1A1A2E")}}>{w.isBreak?"🏖 Break":w.fullLabel}</span><span style={{color:"#888"}}>{new Date(w.dates[0]+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} — {new Date(w.dates[4]+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span></div>)}</div></div></>}<button onClick={doSave} disabled={!sd||saving} style={{width:"100%",padding:"12px 0",borderRadius:12,border:"none",background:sd?"linear-gradient(135deg,#4F5BD5,#7B68EE)":"#E8E8EE",color:sd?"#fff":"#999",fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:700,cursor:sd?"pointer":"default"}}>{saving?"Saving...":"💾 Save Calendar"}</button></div></div></div>}
+/* Alerts Panel */
+function AlertsSummaryPanel({students:ss,records:rr,academicWeeks:aw}){const aa=useMemo(()=>{const r=[];for(const s of ss.filter(s=>s.visible)){const a=getStudentAlerts(s.name,rr,aw);if(a.length>0)r.push({student:s,alerts:a,highest:getHighestAlert(a)})}r.sort((a,b)=>{const o={purple:0,red:1,yellow:2};return(o[a.highest]??9)-(o[b.highest]??9)});return r},[ss,rr,aw]);if(aa.length===0)return null;return <div style={{background:"#fff",borderRadius:16,border:"1px solid #EEEEF2",overflow:"hidden",marginBottom:24}}><div style={{padding:"14px 24px",borderBottom:"1px solid #EEEEF2",background:"linear-gradient(135deg,#FFFBF0,#FFF5F5,#F8F0FF)",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:18}}>🚨</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:800}}>Alerts</span><span style={{fontSize:12,color:"#888"}}>{aa.length} flagged</span></div><div style={{maxHeight:200,overflowY:"auto"}}>{aa.map(({student:s,alerts,highest:h})=>{const a=ALERT_LEVELS[h];return <div key={s.name} style={{padding:"10px 24px",borderBottom:"1px solid #F5F5F8",display:"flex",alignItems:"center",gap:12,borderLeft:`4px solid ${a.border}`,background:`${a.bg}40`}}><div style={{width:32,height:32,borderRadius:"50%",background:a.bg,border:`2px solid ${a.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>{a.icon}</div><div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,fontWeight:700}}>{s.name}</span><AlertBadge level={h} compact/></div><div style={{fontSize:11,color:"#888",marginTop:1}}>{alerts.map(al=>al.message).join(" · ")}</div></div></div>})}</div></div>}
+const thStyle={fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:700,color:"#888",textTransform:"uppercase",letterSpacing:".06em",padding:"12px 10px",textAlign:"center",whiteSpace:"nowrap"};
 const tdStyle={fontFamily:"'DM Sans',sans-serif",fontSize:14,padding:"10px",textAlign:"center",verticalAlign:"middle"};
-
-/* ═══════════════════════════════════════
-   PDF REPORT GENERATOR
-   ═══════════════════════════════════════ */
-function generateReport(student, records, type, weekOffset) {
-  const sr = records[student.name] || {};
-  const today = new Date();
-  const fmtDate = d => new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-  const fmtShort = d => new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
-
-  // Collect weeks based on report type
-  let weeks = [];
-  let reportTitle = "";
-  let periodLabel = "";
-
-  if (type === "weekly") {
-    const wk = getWeekOffset(weekOffset);
-    weeks = [wk];
-    const dates = getWeekDates(wk);
-    reportTitle = "Weekly Report";
-    periodLabel = `${fmtDate(dates[0])} — ${fmtDate(dates[4])}`;
-  } else if (type === "monthly") {
-    for (let i = 0; i < 4; i++) weeks.push(getWeekOffset(weekOffset - i));
-    weeks.reverse();
-    const firstDates = getWeekDates(weeks[0]);
-    const lastDates = getWeekDates(weeks[weeks.length-1]);
-    reportTitle = "Monthly Report (4 Weeks)";
-    periodLabel = `${fmtDate(firstDates[0])} — ${fmtDate(lastDates[4])}`;
-  } else if (type === "unit") {
-    for (let i = 0; i < 12; i++) weeks.push(getWeekOffset(weekOffset - i));
-    weeks.reverse();
-    const firstDates = getWeekDates(weeks[0]);
-    const lastDates = getWeekDates(weeks[weeks.length-1]);
-    reportTitle = "Unit Report (12 Weeks)";
-    periodLabel = `${fmtDate(firstDates[0])} — ${fmtDate(lastDates[4])}`;
-  }
-
-  // Calculate data for each week
-  const weekData = weeks.map(wk => {
-    const dates = getWeekDates(wk);
-    let completedDays = 0;
-    const days = dates.map(day => {
-      const cats = sr[day] || {};
-      const done = CATEGORIES.map(c => !!cats[c]);
-      const count = done.filter(Boolean).length;
-      const isComplete = count >= 3;
-      if (isComplete) completedDays++;
-      return { day, done, count, isComplete };
-    });
-    return { weekKey: wk, dates, days, completedDays, weekComplete: completedDays >= 4 };
-  });
-
-  // Summary stats
-  const totalDays = weekData.reduce((s,w) => s + 5, 0);
-  const totalCompleted = weekData.reduce((s,w) => s + w.completedDays, 0);
-  const totalWeeks = weekData.length;
-  const completedWeeks = weekData.filter(w => w.weekComplete).length;
-  const catStats = CATEGORIES.map(cat => {
-    let done = 0, total = 0;
-    weekData.forEach(w => w.days.forEach(d => { total++; if (d.done[CATEGORIES.indexOf(cat)]) done++; }));
-    return { cat, done, total, pct: total > 0 ? Math.round((done/total)*100) : 0 };
-  });
-
-  // Build HTML
-  const checkMark = (done) => done
-    ? `<span style="display:inline-block;width:24px;height:24px;border-radius:6px;background:#38A169;color:#fff;text-align:center;line-height:24px;font-size:12px;font-weight:700">✓</span>`
-    : `<span style="display:inline-block;width:24px;height:24px;border-radius:6px;background:#F0F0F5;color:#ccc;text-align:center;line-height:24px;font-size:12px">—</span>`;
-
-  const statusPill = (ok, label) => `<span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;background:${ok?'#E8F8EE':'#FFF3E6'};color:${ok?'#1B7A3D':'#B8600A'}">${label}</span>`;
-
-  const pctBar = (pct, color) => `<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:8px;background:#F0F0F5;border-radius:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${color};border-radius:4px"></div></div><span style="font-size:12px;font-weight:700;color:${color};min-width:36px;text-align:right">${pct}%</span></div>`;
-
-  let weeklyGrids = "";
-  weekData.forEach((w, wi) => {
-    const weekLabel = `Week of ${fmtShort(w.dates[0])}`;
-    weeklyGrids += `
-      <div style="page-break-inside:avoid;margin-bottom:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <span style="font-size:13px;font-weight:700;color:#444">${weekLabel}</span>
-          ${statusPill(w.weekComplete, w.weekComplete ? 'WEEK PASS — '+w.completedDays+'/5' : w.completedDays+'/5 DAYS')}
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <tr style="background:#FAFAFD">
-            <th style="padding:6px 8px;text-align:left;color:#888;font-weight:700;border-bottom:2px solid #EEEEF2">Day</th>
-            ${CATEGORIES.map(c => `<th style="padding:6px 8px;text-align:center;color:${CATEGORY_COLORS[c].active};font-weight:700;border-bottom:2px solid #EEEEF2">${c}</th>`).join('')}
-            <th style="padding:6px 8px;text-align:center;color:#888;font-weight:700;border-bottom:2px solid #EEEEF2">Status</th>
-          </tr>
-          ${w.days.map((d, di) => `
-            <tr style="border-bottom:1px solid #F5F5F8">
-              <td style="padding:6px 8px;font-weight:600;color:#444">${WEEKDAYS[di]} <span style="color:#bbb;font-weight:400;font-size:11px">${fmtShort(d.day)}</span></td>
-              ${CATEGORIES.map((cat, ci) => `<td style="padding:6px 8px;text-align:center">${checkMark(d.done[ci])}</td>`).join('')}
-              <td style="padding:6px 8px;text-align:center">${statusPill(d.isComplete, d.count+'/4')}</td>
-            </tr>
-          `).join('')}
-        </table>
-      </div>`;
-  });
-
-  const html = `<!DOCTYPE html><html><head>
-    <meta charset="UTF-8">
-    <title>${student.name} — ${reportTitle}</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet">
-    <style>
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{font-family:'DM Sans',sans-serif;padding:40px;color:#333;max-width:800px;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      @media print{body{padding:20px}@page{size:A4;margin:15mm}}
-      h1{font-family:'Playfair Display',serif;font-size:24px;font-weight:800;color:#1A1A2E}
-      .header{display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #EEEEF2}
-      .avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#4F5BD5,#7B68EE);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Playfair Display',serif;font-size:20px;font-weight:800}
-      .info-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
-      .info-box{background:#FAFAFD;border:1px solid #EEEEF2;border-radius:10px;padding:10px 14px}
-      .info-label{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.06em}
-      .info-value{font-size:14px;font-weight:700;color:#1A1A2E;margin-top:2px}
-      .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
-      .stat-box{background:#fff;border:1px solid #EEEEF2;border-radius:10px;padding:12px 14px;text-align:center}
-      .stat-value{font-family:'Playfair Display',serif;font-size:24px;font-weight:800}
-      .stat-label{font-size:10px;font-weight:700;color:#888;text-transform:uppercase;margin-top:2px}
-      .section-title{font-size:14px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;padding-top:8px}
-      .cat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
-      .cat-box{background:#fff;border:1px solid #EEEEF2;border-radius:10px;padding:12px}
-      .cat-name{font-size:12px;font-weight:700;margin-bottom:6px}
-      .print-btn{position:fixed;bottom:24px;right:24px;padding:12px 24px;border-radius:12px;border:none;background:linear-gradient(135deg,#4F5BD5,#7B68EE);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(79,91,213,0.3);z-index:100}
-      @media print{.print-btn{display:none}}
-      .footer{margin-top:24px;padding-top:12px;border-top:1px solid #EEEEF2;text-align:center;font-size:11px;color:#bbb}
-    </style>
-  </head><body>
-    <button class="print-btn" onclick="window.print()">📄 Save as PDF / Print</button>
-
-    <div class="header">
-      <div class="avatar">${student.name.charAt(0)}</div>
-      <div>
-        <h1>${student.name}</h1>
-        <div style="font-size:13px;color:#888;margin-top:2px">${reportTitle} · ${periodLabel}</div>
-      </div>
-    </div>
-
-    <div class="info-grid">
-      <div class="info-box"><div class="info-label">🏫 School</div><div class="info-value">${student.school}</div></div>
-      <div class="info-box"><div class="info-label">🎓 Grade</div><div class="info-value">${student.grade}</div></div>
-      <div class="info-box"><div class="info-label">∑ Math Level</div><div class="info-value">${student.mathLevel}</div></div>
-      <div class="info-box"><div class="info-label">字 Chinese Level</div><div class="info-value">${student.chineseLevel}</div></div>
-    </div>
-
-    <div class="stats-grid">
-      <div class="stat-box"><div class="stat-value" style="color:#4F5BD5">${totalCompleted}/${totalDays}</div><div class="stat-label">Days Completed</div></div>
-      <div class="stat-box"><div class="stat-value" style="color:#38A169">${completedWeeks}/${totalWeeks}</div><div class="stat-label">Weeks Passed</div></div>
-      <div class="stat-box"><div class="stat-value" style="color:#D5944F">${totalDays>0?Math.round((totalCompleted/totalDays)*100):0}%</div><div class="stat-label">Day Completion Rate</div></div>
-      <div class="stat-box"><div class="stat-value" style="color:${completedWeeks>=Math.ceil(totalWeeks*0.8)?'#38A169':'#D5564F'}">${totalWeeks>0?Math.round((completedWeeks/totalWeeks)*100):0}%</div><div class="stat-label">Week Pass Rate</div></div>
-    </div>
-
-    <div class="section-title">Category Breakdown</div>
-    <div class="cat-grid">
-      ${catStats.map(cs => `<div class="cat-box">
-        <div class="cat-name" style="color:${CATEGORY_COLORS[cs.cat].active}">${CATEGORY_ICONS[cs.cat]} ${cs.cat}</div>
-        ${pctBar(cs.pct, CATEGORY_COLORS[cs.cat].active)}
-        <div style="font-size:11px;color:#888;margin-top:4px">${cs.done} of ${cs.total} days</div>
-      </div>`).join('')}
-    </div>
-
-    <div class="section-title">Weekly Detail</div>
-    ${weeklyGrids}
-
-    <div class="footer">
-      📚 Assignment Tracker · Generated ${new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
-      <br>Rules: 3/4 categories = day complete · 4/5 days = week complete
-    </div>
-  </body></html>`;
-
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
-}
-
-/* ═══════════════ MAIN PAGE ═══════════════ */
-function MainPage({students,records,onToggle,onSelectStudent,weekOffset,setWeekOffset,onRefresh}){
-  const todayKey=getDayKey();const weekDates=getWeekDates(getWeekOffset(weekOffset));
-  const [selectedDay,setSelectedDay]=useState(todayKey);
-  const [showHidden,setShowHidden]=useState(false);
-  useEffect(()=>{weekOffset===0?setSelectedDay(todayKey):setSelectedDay(getWeekDates(getWeekOffset(weekOffset))[0])},[weekOffset]);
-  const visibleStudents=students.filter(s=>s.visible);const hiddenStudents=students.filter(s=>!s.visible);
-  const isCatchUp=selectedDay!==todayKey&&selectedDay<todayKey;
-  const selectedDayLabel=new Date(selectedDay+"T00:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
-
-  return <div className="app-content">
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28,flexWrap:"wrap",gap:16}}>
-      <div><h1 style={{fontFamily:"'Playfair Display',serif",fontSize:32,fontWeight:800,color:"#1A1A2E",margin:0}}>📚 Assignment Tracker</h1><p style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,color:"#888",margin:"6px 0 0"}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</p></div>
-      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10}}>
-        <WeekNavigator weekOffset={weekOffset} setWeekOffset={setWeekOffset}/>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={onRefresh} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,border:"2px solid #4F5BD5",background:"#EEF0FF",color:"#4F5BD5",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700,cursor:"pointer"}}>🔄 Refresh</button>
-          {hiddenStudents.length>0&&<button onClick={()=>setShowHidden(!showHidden)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,border:`2px solid ${showHidden?"#D5944F":"#E0E0E8"}`,background:showHidden?"#FFF8EE":"#fff",color:showHidden?"#B8600A":"#666",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700,cursor:"pointer"}}>{hiddenStudents.length} Hidden</button>}
-        </div>
-      </div>
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:24}}>
-      {[{l:"Active",v:visibleStudents.length,c:"#4F5BD5",i:"👥"},{l:"Hidden",v:hiddenStudents.length,c:"#B8600A",i:"👁‍🗨"},{l:"Today Done",v:visibleStudents.filter(s=>isDayCompleted(records[s.name]?.[todayKey])).length,c:"#38A169",i:"✅",m:visibleStudents.length},{l:"Week Done",v:visibleStudents.filter(s=>isWeekCompletedFromDates(records[s.name],weekDates)).length,c:"#D5944F",i:"🏆",m:visibleStudents.length}].map(st=><div key={st.l} style={{background:"#fff",borderRadius:14,padding:"14px 18px",border:"1px solid #EEEEF2"}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:18}}>{st.i}</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#888",fontWeight:700,textTransform:"uppercase"}}>{st.l}</span></div><div style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:800,color:st.c,marginTop:2}}>{st.v}{st.m!==undefined&&<span style={{fontSize:13,color:"#bbb",fontWeight:400,fontFamily:"'DM Sans',sans-serif"}}>/{st.m}</span>}</div></div>)}
-    </div>
-    <AlertsSummaryPanel students={students} records={records}/>
-    <DayPicker weekDates={weekDates} selectedDay={selectedDay} onSelectDay={setSelectedDay}/>
-    <div style={{background:"#fff",borderRadius:16,border:isCatchUp?"2px solid #FFE0B2":"1px solid #EEEEF2",overflow:"hidden"}}>
-      <div style={{padding:"14px 24px",borderBottom:"1px solid #EEEEF2",background:isCatchUp?"linear-gradient(135deg,#FFF8EE,#FFFBF5)":"#FAFAFD",display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700,color:isCatchUp?"#B8600A":"#666",textTransform:"uppercase"}}>{isCatchUp?`Catch-Up — ${selectedDayLabel}`:"Daily Check-in"}</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"#aaa"}}>{visibleStudents.length} active · ☁️ Google Sheets</span></div>
-      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{borderBottom:"2px solid #EEEEF2"}}><th style={thStyle}>#</th><th style={{...thStyle,textAlign:"left"}}>Student</th>{CATEGORIES.map(c=><th key={c} style={thStyle}><span style={{color:CATEGORY_COLORS[c].active}}>{CATEGORY_ICONS[c]}</span> {c}</th>)}<th style={thStyle}>{isCatchUp?selectedDayLabel:"Today"}</th><th style={thStyle}>Week</th></tr></thead>
-        <tbody>
-          {visibleStudents.map((s,i)=>{const checked=CATEGORIES.filter(c=>!!records[s.name]?.[selectedDay]?.[c]).length;const wd=countCompletedDays(records[s.name],weekDates);const alerts=getStudentAlerts(s.name,records);const h=getHighestAlert(alerts);const ai=ALERT_LEVELS[h];const ha=h!=="none";
-            return <tr key={s.name} style={{borderBottom:"1px solid #F5F5F8",background:ha?`${ai.bg}30`:(i%2===0?"#fff":"#FCFCFE"),borderLeft:ha?`4px solid ${ai.border}`:"4px solid transparent"}}><td style={{...tdStyle,color:"#bbb",fontWeight:600,width:40}}>{i+1}</td><td style={{...tdStyle,textAlign:"left"}}><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><button onClick={()=>onSelectStudent(s)} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:700,color:"#1A1A2E",padding:0,borderBottom:"2px solid transparent"}} onMouseEnter={e=>{e.target.style.color="#4F5BD5";e.target.style.borderBottomColor="#4F5BD5"}} onMouseLeave={e=>{e.target.style.color="#1A1A2E";e.target.style.borderBottomColor="transparent"}}>{s.name}</button>{ha&&<AlertBadge level={h} compact/>}</div><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#aaa",marginTop:1}}>{s.school} · {s.grade}</div></td>
-              {CATEGORIES.map(cat=><td key={cat} style={tdStyle}><CategoryButton category={cat} checked={!!records[s.name]?.[selectedDay]?.[cat]} onToggle={()=>onToggle(s.name,selectedDay,cat)}/></td>)}
-              <td style={tdStyle}><StatusBadge completed={checked>=3} label={`${checked}/4`}/></td><td style={tdStyle}><StatusBadge completed={wd>=4} label={`${wd}/5`}/></td></tr>})}
-          {showHidden&&hiddenStudents.length>0&&<><tr><td colSpan={8} style={{padding:"10px 24px",background:"#FFF8EE",fontFamily:"'DM Sans',sans-serif",fontSize:12,fontWeight:700,color:"#B8600A",textTransform:"uppercase",borderTop:"2px dashed #FFE0B2"}}>Hidden Students</td></tr>{hiddenStudents.map((s,i)=><tr key={s.name} style={{borderBottom:"1px solid #F5F5F8",background:"#FAFAF5",opacity:0.7}}><td style={{...tdStyle,color:"#bbb",fontWeight:600}}>{i+1}</td><td style={{...tdStyle,textAlign:"left"}}><span style={{textDecoration:"line-through",color:"#999"}}>{s.name}</span></td>{CATEGORIES.map(cat=><td key={cat} style={tdStyle}>—</td>)}<td style={tdStyle}>—</td><td style={tdStyle}>—</td></tr>)}</>}
-        </tbody></table></div>
-    </div>
-    <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:16,marginTop:18,padding:"14px 20px",background:"#fff",borderRadius:12,border:"1px solid #EEEEF2"}}><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#666"}}>3/4 daily = ✅ · 4/5 weekly = ✅ · 📅 Catch up past days · ☁️ Auto-synced</span></div>
-  </div>;
-}
-
-/* ═══════════════ STUDENT PAGE ═══════════════ */
-function StudentPage({student,records,onToggle,onBack,weekOffset,setWeekOffset}){
-  const todayKey=getDayKey();const weekDates=getWeekDates(getWeekOffset(weekOffset));
-  const [selectedDay,setSelectedDay]=useState(weekOffset===0?todayKey:weekDates[0]);
-  useEffect(()=>{weekOffset===0?setSelectedDay(todayKey):setSelectedDay(getWeekDates(getWeekOffset(weekOffset))[0])},[weekOffset]);
-  const alerts=useMemo(()=>getStudentAlerts(student.name,records),[student.name,records]);
-  const isCatchUp=selectedDay!==todayKey&&selectedDay<todayKey;
-
-  const weeksSummary=useMemo(()=>Array.from({length:4},(_,i)=>{const wk=getWeekOffset(weekOffset-i);const dates=getWeekDates(wk);let cd=0;const dd=dates.map(day=>{const cats=records[student.name]?.[day]||{};const done=CATEGORIES.map(c=>!!cats[c]);const count=done.filter(Boolean).length;const ic=count>=3;if(ic)cd++;return{day,done,count,isComplete:ic}});return{weekKey:wk,dates,dayDetails:dd,completedDays:cd,weekComplete:cd>=4}}),[student.name,records,weekOffset]);
-  const cw=weeksSummary[0];
-  const allDays=Object.keys(records[student.name]||{});const tt=allDays.length;const tc=allDays.filter(d=>isDayCompleted(records[student.name]?.[d])).length;
-
-  return <div className="app-content">
-    <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,color:"#4F5BD5",padding:0,marginBottom:16,display:"flex",alignItems:"center",gap:6}}>◂ Back to Roster</button>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:16}}>
-      <div style={{display:"flex",alignItems:"center",gap:16}}>
-        <div style={{width:56,height:56,borderRadius:"50%",background:alerts.length>0?`linear-gradient(135deg,${ALERT_LEVELS[getHighestAlert(alerts)].border},${ALERT_LEVELS[getHighestAlert(alerts)].color}88)`:"linear-gradient(135deg,#4F5BD5,#7B68EE)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:800}}>{student.name.charAt(0)}</div>
-        <div><div style={{display:"flex",alignItems:"center",gap:10}}><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:800,color:"#1A1A2E",margin:0}}>{student.name}</h2>{alerts.length>0&&<AlertBadge level={getHighestAlert(alerts)}/>}</div><p style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:"#888",margin:"2px 0 0"}}>{student.school} · Grade {student.grade}</p></div>
-      </div>
-      <WeekNavigator weekOffset={weekOffset} setWeekOffset={setWeekOffset}/>
-    </div>
-
-    {alerts.length>0&&<div style={{background:ALERT_LEVELS[getHighestAlert(alerts)].bg,border:`2px solid ${ALERT_LEVELS[getHighestAlert(alerts)].border}`,borderRadius:14,padding:"16px 20px",marginBottom:20}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:22}}>{ALERT_LEVELS[getHighestAlert(alerts)].icon}</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:800,color:ALERT_LEVELS[getHighestAlert(alerts)].color,textTransform:"uppercase"}}>{ALERT_LEVELS[getHighestAlert(alerts)].label} Alert — {student.name}</span></div>{alerts.map((al,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginTop:4,paddingLeft:32}}><span style={{fontSize:10}}>{ALERT_LEVELS[al.level].icon}</span><span style={{fontFamily:"'DM Sans',sans-serif",fontSize:13,color:ALERT_LEVELS[al.level].color,fontWeight:600}}>{al.message}</span></div>)}</div>}
-
-    <div style={{background:"#fff",borderRadius:14,padding:"18px 22px",border:"1px solid #EEEEF2",marginBottom:20,display:"flex",flexWrap:"wrap",gap:24}}>
-      {[{l:"School",v:student.school,i:"🏫"},{l:"Grade",v:student.grade,i:"🎓"},{l:"Math",v:student.mathLevel,i:"∑"},{l:"Chinese",v:student.chineseLevel,i:"字"}].map(x=><div key={x.l} style={{flex:"1 1 140px"}}><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>{x.i} {x.l}</div><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:700,color:"#1A1A2E",marginTop:2}}>{x.v}</div></div>)}
-    </div>
-
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:24}}>
-      {[{l:"This Week",v:`${cw.completedDays}/5`,d:cw.weekComplete,c:"#4F5BD5"},{l:"Tracked",v:tt,d:null,c:"#666"},{l:"Completed",v:tc,d:null,c:"#38A169"},{l:"Rate",v:tt>0?Math.round((tc/tt)*100)+"%":"—",d:null,c:"#D5944F"}].map(s=><div key={s.l} style={{background:"#fff",borderRadius:14,padding:"14px 16px",border:"1px solid #EEEEF2"}}><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase"}}>{s.l}</div><div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}><span style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:800,color:s.c}}>{s.v}</span>{s.d!==null&&<StatusBadge completed={s.d} label={s.d?"PASS":"IN PROGRESS"}/>}</div></div>)}
-    </div>
-
-    {/* ═══ REPORT BUTTONS ═══ */}
-    <div style={{background:"#fff",borderRadius:16,border:"1px solid #EEEEF2",padding:"18px 24px",marginBottom:24}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:18}}>📄</span>
-          <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:700,color:"#666",textTransform:"uppercase",letterSpacing:"0.06em"}}>Generate Report</span>
-        </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={()=>generateReport(student,records,"weekly",weekOffset)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,border:"2px solid #4F5BD5",background:"#EEF0FF",color:"#4F5BD5",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700,cursor:"pointer"}}>📋 Weekly</button>
-          <button onClick={()=>generateReport(student,records,"monthly",weekOffset)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,border:"2px solid #38A169",background:"#E8F8EE",color:"#1B7A3D",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700,cursor:"pointer"}}>📊 Monthly (4 wk)</button>
-          <button onClick={()=>generateReport(student,records,"unit",weekOffset)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,border:"2px solid #D5944F",background:"#FFF8EE",color:"#B8600A",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:700,cursor:"pointer"}}>📑 Unit (12 wk)</button>
-        </div>
-      </div>
-      <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#bbb",marginTop:10}}>Opens a print-friendly report in a new tab. Click "Save as PDF" or print directly. Reports are based on the current week navigator position.</p>
-    </div>
-
-    <DayPicker weekDates={weekDates} selectedDay={selectedDay} onSelectDay={setSelectedDay} label="Edit check-in for:"/>
-
-    <div style={{background:"#fff",borderRadius:16,border:isCatchUp?"2px solid #FFE0B2":"1px solid #EEEEF2",padding:24,marginBottom:24}}>
-      <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:700,color:"#666",textTransform:"uppercase",margin:"0 0 16px"}}>Weekly Detail — {cw.weekComplete?"✅ Completed":`${cw.completedDays}/5 (need 4)`}</h3>
-      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}>
-        <thead><tr><th style={thStyle}>Day</th>{CATEGORIES.map(c=><th key={c} style={thStyle}><span style={{color:CATEGORY_COLORS[c].active}}>{CATEGORY_ICONS[c]}</span> {c}</th>)}<th style={thStyle}>Status</th></tr></thead>
-        <tbody>{cw.dayDetails.map((dd,i)=>{const isToday=dd.day===todayKey;const isEdit=dd.day===selectedDay;
-          return <tr key={dd.day} onClick={()=>setSelectedDay(dd.day)} style={{borderBottom:"1px solid #F5F5F8",background:isEdit?(isCatchUp?"#FFF8EE":"#F0F0FF"):(isToday?"#F5F5FF":(i%2===0?"#fff":"#FCFCFE")),cursor:"pointer",borderLeft:isEdit?`4px solid ${isCatchUp?"#D5944F":"#4F5BD5"}`:"4px solid transparent"}}>
-            <td style={{...tdStyle,fontWeight:700,textAlign:"left",color:isEdit?(isCatchUp?"#B8600A":"#4F5BD5"):(isToday?"#4F5BD5":"#444")}}>{WEEKDAYS[i]}<span style={{fontWeight:400,color:"#bbb",marginLeft:6,fontSize:12}}>{new Date(dd.day+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>{isToday&&<span style={{marginLeft:8,fontSize:9,fontWeight:800,color:"#4F5BD5",background:"#EEF0FF",padding:"2px 6px",borderRadius:4}}>TODAY</span>}{isEdit&&!isToday&&<span style={{marginLeft:8,fontSize:9,fontWeight:800,color:"#B8600A",background:"#FFF3E6",padding:"2px 6px",borderRadius:4}}>EDITING</span>}</td>
-            {CATEGORIES.map((cat,ci)=><td key={cat} style={tdStyle}>{isEdit?<CategoryButton category={cat} checked={dd.done[ci]} onToggle={()=>onToggle(student.name,dd.day,cat)} small/>:<span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:8,background:dd.done[ci]?CATEGORY_COLORS[cat].active:"#F5F5F8",color:dd.done[ci]?"#fff":"#ccc",fontSize:14,fontWeight:700}}>{dd.done[ci]?"✓":"—"}</span>}</td>)}
-            <td style={tdStyle}><StatusBadge completed={dd.isComplete} label={`${dd.count}/4`}/></td>
-          </tr>})}</tbody></table></div>
-      <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#bbb",marginTop:12,marginBottom:0,textAlign:"center"}}>📅 Click any row to edit that day</p>
-    </div>
-
-    <div style={{background:"#fff",borderRadius:16,border:"1px solid #EEEEF2",padding:24}}>
-      <h3 style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:700,color:"#666",textTransform:"uppercase",margin:"0 0 16px"}}>4-Week Progress</h3>
-      <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
-        {weeksSummary.map((ws,wi)=>{const rc=ws.weekComplete?"#38A169":"#E74C3C";return <div key={ws.weekKey} style={{flex:"1 1 130px",minWidth:130,background:wi===0?"#FAFAFF":"#FAFAFA",borderRadius:12,padding:14,border:!ws.weekComplete&&wi>0?"2px solid #FFD0D0":(wi===0?"2px solid #4F5BD520":"1px solid #EEEEF2"),textAlign:"center"}}>
-          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,fontWeight:700,color:"#888",textTransform:"uppercase",marginBottom:8}}>{wi===0?"Current":`Wk ${new Date(ws.dates[0]+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}`}</div>
-          <div style={{position:"relative",display:"inline-block"}}><ProgressRing value={ws.completedDays} max={5} color={rc}/><div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",fontFamily:"'DM Sans',sans-serif",fontSize:15,fontWeight:800,color:rc}}>{ws.completedDays}/5</div></div>
-          <div style={{marginTop:6}}><StatusBadge completed={ws.weekComplete} label={ws.weekComplete?"PASS":"INCOMPLETE"}/></div>
-          <div style={{display:"flex",justifyContent:"center",gap:4,marginTop:6}}>{ws.dayDetails.map((dd,di)=><div key={di} style={{width:10,height:10,borderRadius:"50%",background:dd.isComplete?"#38A169":(dd.count>0?"#FFD166":"#E8E8EE")}}/>)}</div>
-        </div>})}
-      </div>
-    </div>
-  </div>;
-}
-
-/* ═══════════════ APP ROOT ═══════════════ */
-function App(){
-  const [loading,setLoading]=useState(true);const [students,setStudents]=useState([]);const [records,setRecords]=useState({});
-  const [selectedStudent,setSelectedStudent]=useState(null);const [weekOffset,setWeekOffset]=useState(0);
-  const [syncStatus,setSyncStatus]=useState(null);const syncTimer=useRef(null);
-
-  const fetchData=useCallback(async(showLoading=false)=>{
-    if(showLoading)setLoading(true);
-    try{const [sr,cr]=await Promise.all([apiGet("getStudents"),apiGet("getCheckIns")]);
-      if(sr.students)setStudents(sr.students.map(s=>({...s,visible:(s.status||"Active").toLowerCase()!=="hidden"})));
-      if(cr.checkIns)setRecords(cr.checkIns);
-    }catch(err){console.error("Fetch:",err)}
-    setLoading(false);
-  },[]);
-
-  useEffect(()=>{fetchData(true)},[fetchData]);
-  useEffect(()=>{const iv=setInterval(()=>fetchData(false),30000);return()=>clearInterval(iv)},[fetchData]);
-
-  const handleToggle=useCallback(async(studentName,date,category)=>{
-    setRecords(prev=>{const n={...prev};if(!n[studentName])n[studentName]={};if(!n[studentName][date])n[studentName][date]={};n[studentName][date][category]=!n[studentName][date][category];return n});
-    setSyncStatus("saving");
-    try{const cv=records[studentName]?.[date]?.[category];await apiPost({action:"toggleCheckIn",studentName,date,category,checked:!cv});setSyncStatus("saved")}catch(e){setSyncStatus("error")}
-    if(syncTimer.current)clearTimeout(syncTimer.current);syncTimer.current=setTimeout(()=>setSyncStatus(null),2000);
-  },[records]);
-
-  if(loading)return <SkeletonScreen/>;
-  return <div className="container"><SyncBadge status={syncStatus}/>
-    {selectedStudent?<StudentPage student={selectedStudent} records={records} onToggle={handleToggle} onBack={()=>setSelectedStudent(null)} weekOffset={weekOffset} setWeekOffset={setWeekOffset}/>:
-    <MainPage students={students} records={records} onToggle={handleToggle} onSelectStudent={setSelectedStudent} weekOffset={weekOffset} setWeekOffset={setWeekOffset} onRefresh={()=>fetchData(false)}/>}
-  </div>;
-}
-
+/* PDF Report */
+function generateReport(student,records,type,aw,ci){const sr=records[student.name]||{};const cw=aw[ci];if(!cw)return;const fs=d=>new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});const fl=d=>new Date(d+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});let weeks=[],title="",period="";if(type==="weekly"){weeks=[cw];title=`Weekly Report — ${cw.fullLabel}`;period=`${fl(cw.dates[0])} — ${fl(cw.dates[4])}`}else if(type==="monthly"){const uw=aw.filter(w=>!w.isBreak&&w.unit===cw.unit);const p=uw.findIndex(w=>w.weekStart===cw.weekStart);weeks=uw.slice(Math.max(0,p-3),p+1);title=`Monthly Report — Unit ${cw.unit}`;period=weeks.length?`${fl(weeks[0].dates[0])} — ${fl(weeks[weeks.length-1].dates[4])}`:""}else{weeks=aw.filter(w=>!w.isBreak&&w.unit===cw.unit);title=`Unit ${cw.unit} Full Report`;period=weeks.length?`${fl(weeks[0].dates[0])} — ${fl(weeks[weeks.length-1].dates[4])}`:""}const wd=weeks.map(w=>{let cd=0;const days=w.dates.map(day=>{const cats=sr[day]||{};const done=CATEGORIES.map(c=>!!cats[c]);const cnt=done.filter(Boolean).length;const ic=cnt>=3;if(ic)cd++;return{day,done,count:cnt,isComplete:ic}});return{...w,days,completedDays:cd,weekComplete:cd>=4}});const td2=wd.length*5,tc=wd.reduce((s,w)=>s+w.completedDays,0),cw2=wd.filter(w=>w.weekComplete).length;const cs=CATEGORIES.map(cat=>{let d=0,t=0;wd.forEach(w=>w.days.forEach(dd=>{t++;if(dd.done[CATEGORIES.indexOf(cat)])d++}));return{cat,done:d,total:t,pct:t>0?Math.round(d/t*100):0}});const cm=ok=>ok?'<span style="display:inline-block;width:22px;height:22px;border-radius:5px;background:#38A169;color:#fff;text-align:center;line-height:22px;font-size:11px;font-weight:700">✓</span>':'<span style="display:inline-block;width:22px;height:22px;border-radius:5px;background:#F0F0F5;color:#ccc;text-align:center;line-height:22px;font-size:11px">—</span>';const sp=(ok,lb)=>`<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:${ok?'#E8F8EE':'#FFF3E6'};color:${ok?'#1B7A3D':'#B8600A'}">${lb}</span>`;const pb=(p,cl)=>`<div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:7px;background:#F0F0F5;border-radius:4px;overflow:hidden"><div style="width:${p}%;height:100%;background:${cl};border-radius:4px"></div></div><span style="font-size:11px;font-weight:700;color:${cl};min-width:32px;text-align:right">${p}%</span></div>`;const wg=wd.map(w=>`<div style="page-break-inside:avoid;margin-bottom:12px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;font-weight:700;color:${w.type==='review'?'#B8600A':'#444'}">${w.fullLabel}</span>${sp(w.weekComplete,w.weekComplete?'PASS '+w.completedDays+'/5':w.completedDays+'/5')}</div><table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="background:#FAFAFD"><th style="padding:5px 6px;text-align:left;color:#888;font-weight:700;border-bottom:1.5px solid #EEEEF2">Day</th>${CATEGORIES.map(c=>`<th style="padding:5px;text-align:center;color:${CATEGORY_COLORS[c].active};font-weight:700;border-bottom:1.5px solid #EEEEF2">${c}</th>`).join('')}<th style="padding:5px;text-align:center;color:#888;font-weight:700;border-bottom:1.5px solid #EEEEF2">Status</th></tr>${w.days.map((d,di)=>`<tr style="border-bottom:1px solid #F5F5F8"><td style="padding:4px 6px;font-weight:600;color:#444">${WEEKDAYS[di]} <span style="color:#bbb;font-size:10px">${fs(d.day)}</span></td>${CATEGORIES.map((cat,ci)=>`<td style="text-align:center;padding:4px">${cm(d.done[ci])}</td>`).join('')}<td style="text-align:center;padding:4px">${sp(d.isComplete,d.count+'/4')}</td></tr>`).join('')}</table></div>`).join('');const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${student.name} — ${title}</title><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;padding:36px;color:#333;max-width:800px;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}@media print{body{padding:16px}@page{size:A4;margin:12mm}.pb{display:none!important}}h1{font-family:'Playfair Display',serif;font-size:22px;font-weight:800;color:#1A1A2E}.hdr{display:flex;align-items:center;gap:14px;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #EEEEF2}.av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#4F5BD5,#7B68EE);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Playfair Display',serif;font-size:18px;font-weight:800}.ig{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}.ib{background:#FAFAFD;border:1px solid #EEEEF2;border-radius:8px;padding:8px 12px}.il{font-size:9px;font-weight:700;color:#888;text-transform:uppercase}.iv{font-size:13px;font-weight:700;color:#1A1A2E;margin-top:1px}.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}.sb{background:#fff;border:1px solid #EEEEF2;border-radius:8px;padding:10px 12px;text-align:center}.sv{font-family:'Playfair Display',serif;font-size:22px;font-weight:800}.sl{font-size:9px;font-weight:700;color:#888;text-transform:uppercase;margin-top:2px}.st{font-size:13px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}.cg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px}.cb{background:#fff;border:1px solid #EEEEF2;border-radius:8px;padding:10px}.cn{font-size:11px;font-weight:700;margin-bottom:4px}.pb{position:fixed;bottom:20px;right:20px;padding:10px 20px;border-radius:10px;border:none;background:linear-gradient(135deg,#4F5BD5,#7B68EE);color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(79,91,213,.3);z-index:100}.ft{margin-top:20px;padding-top:10px;border-top:1px solid #EEEEF2;text-align:center;font-size:10px;color:#bbb}</style></head><body><button class="pb" onclick="window.print()">📄 Save as PDF</button><div class="hdr"><div class="av">${student.name.charAt(0)}</div><div><h1>${student.name}</h1><div style="font-size:12px;color:#888;margin-top:2px">${title} · ${period}</div></div></div><div class="ig"><div class="ib"><div class="il">🏫 School</div><div class="iv">${student.school}</div></div><div class="ib"><div class="il">🎓 Grade</div><div class="iv">${student.grade}</div></div><div class="ib"><div class="il">∑ Math</div><div class="iv">${student.mathLevel}</div></div><div class="ib"><div class="il">字 Chinese</div><div class="iv">${student.chineseLevel}</div></div></div><div class="sg"><div class="sb"><div class="sv" style="color:#4F5BD5">${tc}/${td2}</div><div class="sl">Days Completed</div></div><div class="sb"><div class="sv" style="color:#38A169">${cw2}/${wd.length}</div><div class="sl">Weeks Passed</div></div><div class="sb"><div class="sv" style="color:#D5944F">${td2>0?Math.round(tc/td2*100):0}%</div><div class="sl">Day Rate</div></div><div class="sb"><div class="sv" style="color:${cw2>=Math.ceil(wd.length*.7)?'#38A169':'#D5564F'}">${wd.length>0?Math.round(cw2/wd.length*100):0}%</div><div class="sl">Week Rate</div></div></div><div class="st">Category Breakdown</div><div class="cg">${cs.map(c=>`<div class="cb"><div class="cn" style="color:${CATEGORY_COLORS[c.cat].active}">${CATEGORY_ICONS[c.cat]} ${c.cat}</div>${pb(c.pct,CATEGORY_COLORS[c.cat].active)}<div style="font-size:10px;color:#888;margin-top:3px">${c.done}/${c.total}</div></div>`).join('')}</div><div class="st">Weekly Detail</div>${wg}<div class="ft">📚 Assignment Tracker · Generated ${new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}<br>3/4 = day complete · 4/5 = week complete</div></body></html>`;const win=window.open('','_blank');win.document.write(html);win.document.close()}
+/* MAIN PAGE */
+function MainPage({students:ss,records:rr,onToggle,onSelectStudent,academicWeeks:aw,selectedWeekIdx:si,setSelectedWeekIdx:ssi,onRefresh,onOpenCalendar}){const tk=getDayKey();const cw=aw[si];const wd=cw?cw.dates:[];const[sd,setSd]=useState(tk);const[sh,setSh]=useState(false);useEffect(()=>{if(cw){setSd(cw.dates.includes(tk)?tk:cw.dates[0])}},[si]);const vs=ss.filter(s=>s.visible),hs=ss.filter(s=>!s.visible);const ic=sd!==tk&&sd<tk;
+return <div className="app-content"><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28,flexWrap:"wrap",gap:16}}><div><h1 style={{fontFamily:"'Playfair Display',serif",fontSize:32,fontWeight:800,color:"#1A1A2E",margin:0}}>📚 Assignment Tracker</h1><p style={{fontSize:14,color:"#888",margin:"6px 0 0"}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</p></div><div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10}}><div style={{display:"flex",alignItems:"center",gap:8}}>{aw.length>0&&<AcademicWeekSelector academicWeeks={aw} selectedIdx={si} onSelect={ssi}/>}<button onClick={onOpenCalendar} title="Calendar Setup" style={{width:36,height:36,borderRadius:10,border:"2px solid #E0E0E8",background:"#fff",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}}>⚙️</button></div><div style={{display:"flex",gap:8}}><button onClick={onRefresh} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,border:"2px solid #4F5BD5",background:"#EEF0FF",color:"#4F5BD5",fontSize:13,fontWeight:700,cursor:"pointer"}}>🔄 Refresh</button>{hs.length>0&&<button onClick={()=>setSh(!sh)} style={{padding:"9px 18px",borderRadius:10,border:`2px solid ${sh?"#D5944F":"#E0E0E8"}`,background:sh?"#FFF8EE":"#fff",color:sh?"#B8600A":"#666",fontSize:13,fontWeight:700,cursor:"pointer"}}>{hs.length} Hidden</button>}</div></div></div>
+{cw&&<div style={{background:cw.isBreak?"#FFF0F0":(cw.type==="review"?"#FFF8EE":"#EEF0FF"),borderRadius:12,padding:"10px 20px",marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",border:`1.5px solid ${cw.isBreak?"#FFC7C7":(cw.type==="review"?"#FFE0B2":"#C7CAFF")}`}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:18}}>{cw.isBreak?"🏖":(cw.type==="review"?"📝":"📚")}</span><span style={{fontSize:15,fontWeight:800,color:cw.isBreak?"#D5564F":(cw.type==="review"?"#B8600A":"#4F5BD5")}}>{cw.isBreak?"Break Week":cw.fullLabel}</span></div><span style={{fontSize:12,color:"#888"}}>{new Date(cw.dates[0]+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})} — {new Date(cw.dates[4]+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span></div>}
+{aw.length===0&&<div style={{background:"#FFF8EE",border:"2px solid #FFE0B2",borderRadius:14,padding:24,marginBottom:24,textAlign:"center"}}><span style={{fontSize:28}}>📅</span><p style={{fontSize:15,fontWeight:700,color:"#B8600A",marginTop:8}}>Academic Calendar Not Set Up</p><p style={{fontSize:13,color:"#888",marginTop:4}}>Click ⚙️ above to configure your school calendar.</p></div>}
+<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:24}}>{[{l:"Active",v:vs.length,c:"#4F5BD5",i:"👥"},{l:"Hidden",v:hs.length,c:"#B8600A",i:"👁‍🗨"},{l:"Today Done",v:vs.filter(s=>isDayCompleted(rr[s.name]?.[tk])).length,c:"#38A169",i:"✅",m:vs.length},{l:"Week Done",v:cw?vs.filter(s=>countCompletedDays(rr[s.name],cw.dates)>=4).length:0,c:"#D5944F",i:"🏆",m:vs.length}].map(st=><div key={st.l} style={{background:"#fff",borderRadius:14,padding:"14px 18px",border:"1px solid #EEEEF2"}}><div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:18}}>{st.i}</span><span style={{fontSize:11,color:"#888",fontWeight:700,textTransform:"uppercase"}}>{st.l}</span></div><div style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:800,color:st.c,marginTop:2}}>{st.v}{st.m!==undefined&&<span style={{fontSize:13,color:"#bbb",fontWeight:400,fontFamily:"'DM Sans',sans-serif"}}>/{st.m}</span>}</div></div>)}</div>
+<AlertsSummaryPanel students={ss} records={rr} academicWeeks={aw}/>
+{wd.length>0&&<DayPicker weekDates={wd} selectedDay={sd} onSelectDay={setSd}/>}
+{wd.length>0&&<div style={{background:"#fff",borderRadius:16,border:ic?"2px solid #FFE0B2":"1px solid #EEEEF2",overflow:"hidden"}}><div style={{padding:"14px 24px",borderBottom:"1px solid #EEEEF2",background:ic?"linear-gradient(135deg,#FFF8EE,#FFFBF5)":"#FAFAFD",display:"flex",alignItems:"center",justifyContent:"space-between"}}><span style={{fontSize:13,fontWeight:700,color:ic?"#B8600A":"#666",textTransform:"uppercase"}}>{cw?cw.fullLabel:"Check-in"}</span><span style={{fontSize:12,color:"#aaa"}}>{vs.length} active · ☁️</span></div><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr style={{borderBottom:"2px solid #EEEEF2"}}><th style={thStyle}>#</th><th style={{...thStyle,textAlign:"left"}}>Student</th>{CATEGORIES.map(c=><th key={c} style={thStyle}><span style={{color:CATEGORY_COLORS[c].active}}>{CATEGORY_ICONS[c]}</span> {c}</th>)}<th style={thStyle}>Day</th><th style={thStyle}>Week</th></tr></thead><tbody>{vs.map((s,i)=>{const chk=CATEGORIES.filter(c=>!!rr[s.name]?.[sd]?.[c]).length;const wdn=cw?countCompletedDays(rr[s.name],cw.dates):0;const al=getStudentAlerts(s.name,rr,aw);const h=getHighestAlert(al);const ai=ALERT_LEVELS[h];const ha=h!=="none";return <tr key={s.name} style={{borderBottom:"1px solid #F5F5F8",background:ha?`${ai.bg}30`:(i%2===0?"#fff":"#FCFCFE"),borderLeft:ha?`4px solid ${ai.border}`:"4px solid transparent"}}><td style={{...tdStyle,color:"#bbb",fontWeight:600,width:40}}>{i+1}</td><td style={{...tdStyle,textAlign:"left"}}><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><button onClick={()=>onSelectStudent(s)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,fontWeight:700,color:"#1A1A2E",padding:0,borderBottom:"2px solid transparent"}} onMouseEnter={e=>{e.target.style.color="#4F5BD5";e.target.style.borderBottomColor="#4F5BD5"}} onMouseLeave={e=>{e.target.style.color="#1A1A2E";e.target.style.borderBottomColor="transparent"}}>{s.name}</button>{ha&&<AlertBadge level={h} compact/>}</div><div style={{fontSize:11,color:"#aaa",marginTop:1}}>{s.school} · {s.grade}</div></td>{CATEGORIES.map(cat=><td key={cat} style={tdStyle}><CategoryButton category={cat} checked={!!rr[s.name]?.[sd]?.[cat]} onToggle={()=>onToggle(s.name,sd,cat)}/></td>)}<td style={tdStyle}><StatusBadge completed={chk>=3} label={`${chk}/4`}/></td><td style={tdStyle}><StatusBadge completed={wdn>=4} label={`${wdn}/5`}/></td></tr>})}{sh&&hs.length>0&&<><tr><td colSpan={8} style={{padding:"10px 24px",background:"#FFF8EE",fontSize:12,fontWeight:700,color:"#B8600A",textTransform:"uppercase",borderTop:"2px dashed #FFE0B2"}}>Hidden</td></tr>{hs.map((s,i)=><tr key={s.name} style={{borderBottom:"1px solid #F5F5F8",background:"#FAFAF5",opacity:.7}}><td style={{...tdStyle,color:"#bbb"}}>{i+1}</td><td style={{...tdStyle,textAlign:"left"}}><span style={{textDecoration:"line-through",color:"#999"}}>{s.name}</span></td>{CATEGORIES.map(c=><td key={c} style={tdStyle}>—</td>)}<td style={tdStyle}>—</td><td style={tdStyle}>—</td></tr>)}</>}</tbody></table></div></div>}
+<div style={{display:"flex",justifyContent:"center",marginTop:18,padding:"14px 20px",background:"#fff",borderRadius:12,border:"1px solid #EEEEF2"}}><span style={{fontSize:11,color:"#666"}}>3/4 daily = ✅ · 4/5 weekly = ✅ · 📅 Catch up · ☁️ Auto-synced</span></div></div>}
+/* STUDENT PAGE */
+function StudentPage({student:st,records:rr,onToggle,onBack,academicWeeks:aw,selectedWeekIdx:si,setSelectedWeekIdx:ssi}){const tk=getDayKey();const cw=aw[si];const wd=cw?cw.dates:[];const[sd,setSd]=useState(tk);useEffect(()=>{if(cw)setSd(cw.dates.includes(tk)?tk:cw.dates[0])},[si]);const al=useMemo(()=>getStudentAlerts(st.name,rr,aw),[st.name,rr,aw]);const ic=sd!==tk&&sd<tk;const ws=useMemo(()=>{const nb=aw.filter(w=>!w.isBreak);const cp=nb.findIndex(w=>w.weekStart===cw?.weekStart);const start=Math.max(0,cp-3);return nb.slice(start,cp+1).map(w=>{let cd=0;const dd=w.dates.map(day=>{const cats=rr[st.name]?.[day]||{};const done=CATEGORIES.map(c=>!!cats[c]);const cnt=done.filter(Boolean).length;const isc=cnt>=3;if(isc)cd++;return{day,done,count:cnt,isComplete:isc}});return{...w,dayDetails:dd,completedDays:cd,weekComplete:cd>=4}})},[st.name,rr,aw,si]);const cwD=ws.length>0?ws[ws.length-1]:null;const ad=Object.keys(rr[st.name]||{});const tt=ad.length,tc=ad.filter(d=>isDayCompleted(rr[st.name]?.[d])).length;
+return <div className="app-content"><button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,fontWeight:600,color:"#4F5BD5",padding:0,marginBottom:16,display:"flex",alignItems:"center",gap:6}}>◂ Back</button><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20,flexWrap:"wrap",gap:16}}><div style={{display:"flex",alignItems:"center",gap:16}}><div style={{width:56,height:56,borderRadius:"50%",background:al.length>0?`linear-gradient(135deg,${ALERT_LEVELS[getHighestAlert(al)].border},${ALERT_LEVELS[getHighestAlert(al)].color}88)`:"linear-gradient(135deg,#4F5BD5,#7B68EE)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:800}}>{st.name.charAt(0)}</div><div><div style={{display:"flex",alignItems:"center",gap:10}}><h2 style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:800,color:"#1A1A2E",margin:0}}>{st.name}</h2>{al.length>0&&<AlertBadge level={getHighestAlert(al)}/>}</div><p style={{fontSize:13,color:"#888",margin:"2px 0 0"}}>{st.school} · Grade {st.grade}</p></div></div><AcademicWeekSelector academicWeeks={aw} selectedIdx={si} onSelect={ssi}/></div>
+{cw&&<div style={{background:cw.type==="review"?"#FFF8EE":"#EEF0FF",borderRadius:12,padding:"10px 20px",marginBottom:20,border:`1.5px solid ${cw.type==="review"?"#FFE0B2":"#C7CAFF"}`,display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:16}}>{cw.type==="review"?"📝":"📚"}</span><span style={{fontSize:14,fontWeight:800,color:cw.type==="review"?"#B8600A":"#4F5BD5"}}>{cw.fullLabel}</span></div>}
+{al.length>0&&<div style={{background:ALERT_LEVELS[getHighestAlert(al)].bg,border:`2px solid ${ALERT_LEVELS[getHighestAlert(al)].border}`,borderRadius:14,padding:"14px 20px",marginBottom:20}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>{ALERT_LEVELS[getHighestAlert(al)].icon}</span><span style={{fontSize:13,fontWeight:800,color:ALERT_LEVELS[getHighestAlert(al)].color,textTransform:"uppercase"}}>{ALERT_LEVELS[getHighestAlert(al)].label} — {st.name}</span></div>{al.map((a,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,marginTop:4,paddingLeft:30}}><span style={{fontSize:10}}>{ALERT_LEVELS[a.level].icon}</span><span style={{fontSize:12,color:ALERT_LEVELS[a.level].color,fontWeight:600}}>{a.message}</span></div>)}</div>}
+<div style={{background:"#fff",borderRadius:14,padding:"16px 20px",border:"1px solid #EEEEF2",marginBottom:20,display:"flex",flexWrap:"wrap",gap:20}}>{[{l:"School",v:st.school,i:"🏫"},{l:"Grade",v:st.grade,i:"🎓"},{l:"Math",v:st.mathLevel,i:"∑"},{l:"Chinese",v:st.chineseLevel,i:"字"}].map(x=><div key={x.l} style={{flex:"1 1 130px"}}><div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase"}}>{x.i} {x.l}</div><div style={{fontSize:14,fontWeight:700,color:"#1A1A2E",marginTop:2}}>{x.v}</div></div>)}</div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,marginBottom:24}}>{[{l:"This Week",v:cwD?`${cwD.completedDays}/5`:"—",d:cwD?cwD.weekComplete:null,c:"#4F5BD5"},{l:"Tracked",v:tt,d:null,c:"#666"},{l:"Completed",v:tc,d:null,c:"#38A169"},{l:"Rate",v:tt>0?Math.round(tc/tt*100)+"%":"—",d:null,c:"#D5944F"}].map(s=><div key={s.l} style={{background:"#fff",borderRadius:14,padding:"12px 14px",border:"1px solid #EEEEF2"}}><div style={{fontSize:10,fontWeight:700,color:"#888",textTransform:"uppercase"}}>{s.l}</div><div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}><span style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:800,color:s.c}}>{s.v}</span>{s.d!==null&&<StatusBadge completed={s.d} label={s.d?"PASS":"IN PROGRESS"}/>}</div></div>)}</div>
+<div style={{background:"#fff",borderRadius:16,border:"1px solid #EEEEF2",padding:"16px 22px",marginBottom:24}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:16}}>📄</span><span style={{fontSize:13,fontWeight:700,color:"#666",textTransform:"uppercase"}}>Reports</span></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button onClick={()=>generateReport(st,rr,"weekly",aw,si)} style={{padding:"8px 14px",borderRadius:10,border:"2px solid #4F5BD5",background:"#EEF0FF",color:"#4F5BD5",fontSize:12,fontWeight:700,cursor:"pointer"}}>📋 Weekly</button><button onClick={()=>generateReport(st,rr,"monthly",aw,si)} style={{padding:"8px 14px",borderRadius:10,border:"2px solid #38A169",background:"#E8F8EE",color:"#1B7A3D",fontSize:12,fontWeight:700,cursor:"pointer"}}>📊 Monthly</button><button onClick={()=>generateReport(st,rr,"unit",aw,si)} style={{padding:"8px 14px",borderRadius:10,border:"2px solid #D5944F",background:"#FFF8EE",color:"#B8600A",fontSize:12,fontWeight:700,cursor:"pointer"}}>📑 Unit</button></div></div></div>
+{wd.length>0&&<DayPicker weekDates={wd} selectedDay={sd} onSelectDay={setSd} label="Edit check-in:"/>}
+{cwD&&<div style={{background:"#fff",borderRadius:16,border:ic?"2px solid #FFE0B2":"1px solid #EEEEF2",padding:24,marginBottom:24}}><h3 style={{fontSize:13,fontWeight:700,color:"#666",textTransform:"uppercase",margin:"0 0 14px"}}>{cw?.fullLabel} — {cwD.weekComplete?"✅ Done":`${cwD.completedDays}/5`}</h3><div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><th style={thStyle}>Day</th>{CATEGORIES.map(c=><th key={c} style={thStyle}><span style={{color:CATEGORY_COLORS[c].active}}>{CATEGORY_ICONS[c]}</span> {c}</th>)}<th style={thStyle}>Status</th></tr></thead><tbody>{cwD.dayDetails.map((dd,i)=>{const it=dd.day===tk,ie=dd.day===sd;return <tr key={dd.day} onClick={()=>setSd(dd.day)} style={{borderBottom:"1px solid #F5F5F8",background:ie?(ic?"#FFF8EE":"#F0F0FF"):(it?"#F5F5FF":(i%2===0?"#fff":"#FCFCFE")),cursor:"pointer",borderLeft:ie?`4px solid ${ic?"#D5944F":"#4F5BD5"}`:"4px solid transparent"}}><td style={{...tdStyle,fontWeight:700,textAlign:"left",color:ie?(ic?"#B8600A":"#4F5BD5"):(it?"#4F5BD5":"#444")}}>{WEEKDAYS[i]}<span style={{fontWeight:400,color:"#bbb",marginLeft:6,fontSize:12}}>{new Date(dd.day+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>{it&&<span style={{marginLeft:8,fontSize:9,fontWeight:800,color:"#4F5BD5",background:"#EEF0FF",padding:"2px 6px",borderRadius:4}}>TODAY</span>}{ie&&!it&&<span style={{marginLeft:8,fontSize:9,fontWeight:800,color:"#B8600A",background:"#FFF3E6",padding:"2px 6px",borderRadius:4}}>EDITING</span>}</td>{CATEGORIES.map((cat,ci)=><td key={cat} style={tdStyle}>{ie?<CategoryButton category={cat} checked={dd.done[ci]} onToggle={()=>onToggle(st.name,dd.day,cat)} small/>:<span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:32,height:32,borderRadius:8,background:dd.done[ci]?CATEGORY_COLORS[cat].active:"#F5F5F8",color:dd.done[ci]?"#fff":"#ccc",fontSize:14,fontWeight:700}}>{dd.done[ci]?"✓":"—"}</span>}</td>)}<td style={tdStyle}><StatusBadge completed={dd.isComplete} label={`${dd.count}/4`}/></td></tr>})}</tbody></table></div></div>}
+{ws.length>1&&<div style={{background:"#fff",borderRadius:16,border:"1px solid #EEEEF2",padding:24}}><h3 style={{fontSize:13,fontWeight:700,color:"#666",textTransform:"uppercase",margin:"0 0 14px"}}>Recent Progress</h3><div style={{display:"flex",gap:12,flexWrap:"wrap"}}>{ws.map((w,wi)=>{const rc=w.weekComplete?"#38A169":"#E74C3C";const il=wi===ws.length-1;return <div key={w.weekStart} style={{flex:"1 1 110px",minWidth:110,background:il?"#FAFAFF":"#FAFAFA",borderRadius:12,padding:12,border:il?"2px solid #4F5BD520":"1px solid #EEEEF2",textAlign:"center"}}><div style={{fontSize:10,fontWeight:700,color:w.type==="review"?"#B8600A":"#888",textTransform:"uppercase",marginBottom:6}}>{w.label}</div><div style={{position:"relative",display:"inline-block"}}><ProgressRing value={w.completedDays} max={5} size={50} strokeWidth={5} color={rc}/><div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",fontSize:12,fontWeight:800,color:rc}}>{w.completedDays}/5</div></div><div style={{marginTop:4}}><StatusBadge completed={w.weekComplete} label={w.weekComplete?"PASS":"INC"}/></div></div>})}</div></div>}
+</div>}
+/* APP ROOT */
+function App(){const[loading,setLoading]=useState(true);const[students,setStudents]=useState([]);const[records,setRecords]=useState({});const[calConfig,setCalConfig]=useState(null);const[calOpen,setCalOpen]=useState(false);const[selStudent,setSelStudent]=useState(null);const[selWeek,setSelWeek]=useState(0);const[syncStatus,setSyncStatus]=useState(null);const syncT=useRef(null);const aw=useMemo(()=>{if(!calConfig?.startDate)return[];return generateAcademicWeeks(calConfig.startDate,(calConfig.breaks||"").split(",").filter(Boolean))},[calConfig]);useEffect(()=>{if(aw.length===0)return;const ts=getDayKey();const idx=aw.findIndex(w=>w.dates[0]<=ts&&w.dates[4]>=ts);if(idx>=0)setSelWeek(idx);else{const p=aw.filter(w=>w.dates[4]<ts);if(p.length>0)setSelWeek(aw.indexOf(p[p.length-1]))}},[aw]);const fetchData=useCallback(async(sl=false)=>{if(sl)setLoading(true);try{const[sr,cr,cal]=await Promise.all([apiGet("getStudents"),apiGet("getCheckIns"),apiGet("getCalendar")]);if(sr.students)setStudents(sr.students.map(s=>({...s,visible:(s.status||"Active").toLowerCase()!=="hidden"})));if(cr.checkIns)setRecords(cr.checkIns);if(cal.calendar)setCalConfig(cal.calendar)}catch(e){console.error(e)}setLoading(false)},[]);useEffect(()=>{fetchData(true)},[fetchData]);useEffect(()=>{const iv=setInterval(()=>fetchData(false),30000);return()=>clearInterval(iv)},[fetchData]);const handleToggle=useCallback(async(n,d,c)=>{setRecords(p=>{const x={...p};if(!x[n])x[n]={};if(!x[n][d])x[n][d]={};x[n][d][c]=!x[n][d][c];return x});setSyncStatus("saving");try{const cv=records[n]?.[d]?.[c];await apiPost({action:"toggleCheckIn",studentName:n,date:d,category:c,checked:!cv});setSyncStatus("saved")}catch(e){setSyncStatus("error")}if(syncT.current)clearTimeout(syncT.current);syncT.current=setTimeout(()=>setSyncStatus(null),2000)},[records]);if(loading)return <SkeletonScreen/>;return <div className="container"><SyncBadge status={syncStatus}/>{selStudent?<StudentPage student={selStudent} records={records} onToggle={handleToggle} onBack={()=>setSelStudent(null)} academicWeeks={aw} selectedWeekIdx={selWeek} setSelectedWeekIdx={setSelWeek}/>:<MainPage students={students} records={records} onToggle={handleToggle} onSelectStudent={setSelStudent} academicWeeks={aw} selectedWeekIdx={selWeek} setSelectedWeekIdx={setSelWeek} onRefresh={()=>fetchData(false)} onOpenCalendar={()=>setCalOpen(true)}/>}<CalendarSetupModal open={calOpen} onClose={()=>setCalOpen(false)} calConfig={calConfig} onSave={cfg=>{setCalConfig(cfg);setCalOpen(false)}}/></div>}
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body></html>
