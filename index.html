@@ -78,6 +78,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}thead th{padding:12px 
 <div class="toast" id="toast"></div>
 
 <script>
+// NOTE: must match the CURRENT Apps Script deployment (Deploy > Manage deployments). Verify this URL if data won't load.
 const API='https://script.google.com/macros/s/AKfycby0y615CrSuu_BmfffznkuYZYj7DMKNejxJEu8X8bnd9S0AJaypSUfW5SRSg-2foXpA/exec';
 const CATEGORIES=['Math','Chinese','Journal','Homework'];
 const CAT_COLORS={Math:'#8E44AD',Chinese:'#C0392B',Journal:'#2980B9',Homework:'#D4845A'};
@@ -86,7 +87,7 @@ const DAYS=['Mon','Tue','Wed','Thu','Fri'];
 const AVATAR_COLORS=['#2D5A3D','#8E44AD','#2980B9','#C0392B','#D4845A','#1ABC9C','#E67E22','#3498DB','#E74C3C','#9B59B6','#16A085','#F39C12','#2ECC71','#E91E63','#00BCD4'];
 const DAY_PASS=3; // 3 of 4 categories to pass a day
 
-let students=[], checkIns={}, absences={}, calendar=[], currentWeekIndex=0;
+let students=[], checkIns={}, absences={}, calendar=[], currentWeekIndex=0, _pending={};
 
 // Absent day excluded: if present 5→need 4, present 4→need 3, present 3→need 2, etc.
 function weekPassThreshold(presentDays){ return Math.max(1, presentDays-1); }
@@ -109,16 +110,16 @@ function parseDateString(s){if(!s)return null;s=String(s).trim();if(/^\d{4}-\d{2
 function parseDate(s){const n=parseDateString(s);if(!n)return null;const[y,m,d]=n.split('-').map(Number);return new Date(y,m-1,d);}
 function parseStudents(raw){const arr=raw.students||raw.data||(Array.isArray(raw)?raw:[]);return arr.map((s,i)=>({id:String(i),name:s.name||s.Name||'',school:s.school||'',grade:s.grade||'',status:s.status||s.Status||'Active'})).filter(s=>s.name);}
 function parseCheckIns(raw){
-  const obj=raw.checkIns||raw.data||raw, result={};
+  const obj=raw.checkIns||raw.data||raw, result={}, abs={};
   if(typeof obj==='object'&&!Array.isArray(obj)){
     for(const sn of Object.keys(obj)){const dObj=obj[sn];if(typeof dObj!=='object')continue;
       for(const ds of Object.keys(dObj)){const dk=parseDateString(ds);if(!dk)continue;const cats=dObj[ds],key=sn+'-'+dk;result[key]={};
         CATEGORIES.forEach(c=>{if(cats[c]===true||cats[c]==='TRUE'||cats[c]===1)result[key][c]=true;});
-        // If API sends absent flag
-        if(cats.Absent===true||cats.absent===true)absences[sn+'-'+dk]=true;
+        // Absent flag from the sheet (Absent column)
+        if(cats.Absent===true||cats.absent===true||cats.Absent==='TRUE')abs[sn+'-'+dk]=true;
       }}
   }
-  return result;
+  return {checkIns:result, absences:abs};
 }
 function parseCalendar(raw){const arr=raw.calendar||raw.data||(Array.isArray(raw)?raw:[]);return arr.map((w,i)=>({label:w.label||w.Label||`Week ${i+1}`,mondayDate:w.mondayDate||w.monday||w.date||'',active:w.active===true||w.active==='Yes'||w.active==='TRUE'}));}
 
@@ -127,14 +128,17 @@ function saveToLocal(){
   try{
     localStorage.setItem('mslc_checkIns',JSON.stringify(checkIns));
     localStorage.setItem('mslc_absences',JSON.stringify(absences));
+    localStorage.setItem('mslc_pending',JSON.stringify(_pending));
   }catch(e){}
 }
 function loadFromLocal(){
   try{
     const ci=localStorage.getItem('mslc_checkIns');
     const ab=localStorage.getItem('mslc_absences');
+    const pd=localStorage.getItem('mslc_pending');
     if(ci) checkIns=JSON.parse(ci);
     if(ab) absences=JSON.parse(ab);
+    if(pd) _pending=JSON.parse(pd);
   }catch(e){}
 }
 
@@ -142,39 +146,58 @@ function loadFromLocal(){
 async function loadAllData(){
   document.getElementById('loadingState').style.display='block';
 
-  // Step 1: Load from localStorage INSTANTLY (survives refresh)
+  // Step 1: Load from localStorage INSTANTLY (survives refresh / offline)
   loadFromLocal();
 
-  try{
-    // Step 2: Fetch fresh data from API in parallel
-    const[rawS,rawC,rawCal]=await Promise.all([apiFetch('getStudents'),apiFetch('getCheckIns'),apiFetch('getCalendar')]);
-    students=parseStudents(rawS);
-    calendar=parseCalendar(rawCal);
+  // Step 2: Fetch the three feeds INDEPENDENTLY. A slow / cold-starting
+  // getCheckIns (the big ~200KB call) must not block the roster + calendar
+  // from rendering, and must not blank the page with a "network" error.
+  // allSettled never rejects, so one failure can't sink the others.
+  const [rS,rCal,rC]=await Promise.allSettled([
+    apiFetch('getStudents'), apiFetch('getCalendar'), apiFetch('getCheckIns')
+  ]);
 
-    // Step 3: Merge API check-ins with local state
-    const apiCheckIns=parseCheckIns(rawC);
-    const localKeys=Object.keys(checkIns);
+  if(rS.status==='fulfilled')   students=parseStudents(rS.value);
+  if(rCal.status==='fulfilled') calendar=parseCalendar(rCal.value);
 
-    if(localKeys.length===0){
-      // First load ever: use API data as-is
-      checkIns=apiCheckIns;
-    } else {
-      // Merge: API fills in any student-days we don't have locally
-      for(const key of Object.keys(apiCheckIns)){
-        if(!checkIns[key]) checkIns[key]=apiCheckIns[key];
-      }
-    }
-    // Save merged state
-    saveToLocal();
-
-    autoSelectWeek(); renderAll();
-  }catch(err){
-    console.error(err);
-    // Even if API fails, we still have localStorage data + can render
-    if(students.length>0){ autoSelectWeek(); renderAll(); }
-    else{ showToast('Failed to load: '+err.message,true); setTimeout(loadAllData,5000); }
+  if(students.length>0){
+    autoSelectWeek(); renderAll();               // paint roster + grid ASAP
+  }else{
+    // No roster at all (first-ever load AND students call failed): retry all.
+    document.getElementById('loadingState').style.display='none';
+    showToast('Failed to load students. Retrying…',true);
+    setTimeout(loadAllData,5000); return;
   }
-  finally{document.getElementById('loadingState').style.display='none';}
+
+  // Check-ins: apply if we got them; otherwise keep the cached copy on screen
+  // and quietly retry just this one feed (no scary error, page stays usable).
+  if(rC.status==='fulfilled'){
+    applyCheckIns(rC.value); renderAll();
+  }else{
+    console.error('getCheckIns failed:',rC.reason);
+    showToast('Check-in data is loading slowly — retrying…');
+    setTimeout(refreshCheckInsOnly,5000);
+  }
+  document.getElementById('loadingState').style.display='none';
+}
+
+// Merge server check-ins over local state, preserving un-synced local edits (_pending).
+function applyCheckIns(rawC){
+  const localCI=checkIns, localAb=absences;
+  const api=parseCheckIns(rawC);
+  checkIns=api.checkIns; absences=api.absences;
+  for(const k of Object.keys(_pending)){
+    if(localCI[k]) checkIns[k]=localCI[k]; else delete checkIns[k];
+    if(localAb[k]) absences[k]=true; else delete absences[k];
+  }
+  saveToLocal();
+}
+
+// Retry ONLY the check-ins feed; roster + calendar are already on screen.
+async function refreshCheckInsOnly(){
+  try{
+    applyCheckIns(await apiFetch('getCheckIns')); renderAll();
+  }catch(e){ console.error('check-in retry failed:',e); setTimeout(refreshCheckInsOnly,8000); }
 }
 function autoSelectWeek(){const t=new Date();t.setHours(0,0,0,0);let b=0,bd=Infinity;calendar.forEach((w,i)=>{const m=parseDate(w.mondayDate);if(!m)return;const f=new Date(m);f.setDate(f.getDate()+4);if(t>=m&&t<=f){b=i;bd=0;}else{const d=Math.abs(t-m);if(d<bd){bd=d;b=i;}}});currentWeekIndex=b;}
 function getWeekDates(wi){const w=calendar[wi];if(!w)return[];const m=parseDate(w.mondayDate);if(!m)return[];return Array.from({length:5},(_,i)=>{const d=new Date(m);d.setDate(d.getDate()+i);return d;});}
@@ -227,12 +250,12 @@ function renderTableBody(){
     ds.forEach(d=>{
       const dk=fmtDate(d),absent=isAbsent(s.name,dk),ci=checkIns[ciKey(s.name,dk)]||{},isFuture=d>today;
       // Absent button
-      html+=`<td class="day-col-group" style="padding:4px 2px;"><button class="absent-btn${absent?' is-absent':''}" ${isFuture?'disabled style="opacity:.3;cursor:default;"':''} onclick="toggleAbsent('${esc(s.name)}','${dk}',this)" title="Mark absent">A</button></td>`;
+      html+=`<td class="day-col-group" style="padding:4px 2px;"><button class="absent-btn${absent?' is-absent':''}" ${isFuture?'disabled style="opacity:.3;cursor:default;"':''} onclick="toggleAbsent('${jss(s.name)}','${dk}',this)" title="Mark absent">A</button></td>`;
       // Category buttons
       CATEGORIES.forEach(cat=>{
         const chk=!!ci[cat];
         const disabledByAbsent=absent?' absent-disabled':'';
-        html+=`<td style="padding:4px 2px;"><button class="check-btn${chk?' checked':''}${disabledByAbsent}" ${(isFuture||absent)?'disabled':''}  ${isFuture?'style="opacity:.3;cursor:default;"':''} onclick="toggleCheck('${esc(s.name)}','${dk}','${cat}',this)" title="${cat}">${chk?'\u2713':''}</button></td>`;
+        html+=`<td style="padding:4px 2px;"><button class="check-btn${chk?' checked':''}${disabledByAbsent}" ${(isFuture||absent)?'disabled':''}  ${isFuture?'style="opacity:.3;cursor:default;"':''} onclick="toggleCheck('${jss(s.name)}','${dk}','${cat}',this)" title="${cat}">${chk?'\u2713':''}</button></td>`;
       });
     });
     let wCls=wk.passed?'week-pass':wk.passedDays>=Math.max(1,wk.threshold-1)?'week-partial':'week-fail';
@@ -268,6 +291,8 @@ var _syncTimers = {};
 var _syncInFlight = {};
 
 function saveAndSync(name, date) {
+  // Mark this student-day dirty until the sheet confirms the write
+  _pending[ciKey(name,date)]=true;
   // Step 1: Save to localStorage INSTANTLY (this is what survives refresh)
   saveToLocal();
 
@@ -294,6 +319,7 @@ async function bgSync(name, date) {
       Journal: !!ci.Journal, Homework: !!ci.Homework,
       Absent: absent
     });
+    delete _pending[ciKey(name,date)]; saveToLocal();
     console.log('Synced to sheets:', name, date);
   } catch(e) {
     console.error('Sync failed:', name, date, e);
@@ -308,9 +334,13 @@ async function bgSync(name, date) {
 window.addEventListener('beforeunload', function() {
   Object.keys(_syncTimers).forEach(function(key) {
     clearTimeout(_syncTimers[key]);
-    // Fire sync immediately for any pending changes
-    const [name, ...dateParts] = key.split('-');
-    // Can't do async here, so use sendBeacon as last resort
+    // key is name+'-'+date; the date is the trailing YYYY-MM-DD (10 chars)
+    const date=key.slice(-10), name=key.slice(0,-11);
+    const ci=checkIns[ciKey(name,date)]||{};
+    const payload=JSON.stringify({action:'saveRow',studentName:name,date:date,
+      Math:!!ci.Math,Chinese:!!ci.Chinese,Journal:!!ci.Journal,Homework:!!ci.Homework,
+      Absent:isAbsent(name,date)});
+    try{navigator.sendBeacon(API,new Blob([payload],{type:'text/plain;charset=utf-8'}));}catch(e){}
   });
 });
 
@@ -428,9 +458,9 @@ function showStudentPage(idx){
     <div class="detail-card detail-card-full">
       <div class="detail-card-title">\u{1F4C4} Generate Reports</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn btn-solid" onclick="genPDF('${esc(s.name)}','weekly')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Weekly</button>
-        <button class="btn btn-outline" onclick="genPDF('${esc(s.name)}','monthly')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Monthly</button>
-        <button class="btn btn-outline" onclick="genPDF('${esc(s.name)}','unit')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Unit</button>
+        <button class="btn btn-solid" onclick="genPDF('${jss(s.name)}','weekly')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Weekly</button>
+        <button class="btn btn-outline" onclick="genPDF('${jss(s.name)}','monthly')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Monthly</button>
+        <button class="btn btn-outline" onclick="genPDF('${jss(s.name)}','unit')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Unit</button>
       </div>
     </div>
   </div>`;
@@ -487,6 +517,7 @@ function renderCalTable(){if(!calendar.length){document.getElementById('calendar
 
 // ─── Utils ───
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function jss(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function showToast(m,e){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(e?' error':'');clearTimeout(window._tt);window._tt=setTimeout(()=>t.className='toast',4000);}
 async function refreshData(){showToast('Refreshing...');await loadAllData();showToast('Data refreshed!');}
 document.getElementById('calendarModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCalendarModal();});
