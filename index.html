@@ -58,7 +58,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}thead th{padding:12px 
       <button class="week-nav-btn" onclick="changeWeek(1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
     </div>
     <div class="week-bar-right">
-      <div class="filter-bar"><select id="statusFilter" onchange="renderAll()"><option value="all">All Students</option><option value="Active" selected>Active Only</option></select></div>
+      <div class="filter-bar"><select id="gradeFilter" onchange="renderAll()"><option value="all">All Grades</option></select><select id="progressFilter" onchange="renderAll()"><option value="all">All Progress</option><option value="todayNotDone">Today Incomplete</option><option value="weekNotPassed">Week Not Passed</option></select><select id="statusFilter" onchange="renderAll()"><option value="all">All Students</option><option value="Active" selected>Active Only</option></select></div>
       <button class="btn btn-outline btn-sm" onclick="goToCurrentWeek()">Today</button>
     </div>
   </div>
@@ -203,7 +203,29 @@ function autoSelectWeek(){const t=new Date();t.setHours(0,0,0,0);let b=0,bd=Infi
 function getWeekDates(wi){const w=calendar[wi];if(!w)return[];const m=parseDate(w.mondayDate);if(!m)return[];return Array.from({length:5},(_,i)=>{const d=new Date(m);d.setDate(d.getDate()+i);return d;});}
 function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function fmtShort(d){return(d.getMonth()+1)+'/'+d.getDate();}
-function getFilteredStudents(){const f=document.getElementById('statusFilter').value;return f==='all'?students:students.filter(s=>s.status===f);}
+function getFilteredStudents(){
+  const f=document.getElementById('statusFilter').value;
+  const g=(document.getElementById('gradeFilter')||{}).value||'all';
+  const p=(document.getElementById('progressFilter')||{}).value||'all';
+  let list=f==='all'?students:students.filter(s=>s.status===f);
+  if(g!=='all') list=list.filter(s=>String(s.grade||'').trim()===g);
+  if(p!=='all'){
+    const ds=getWeekDates(currentWeekIndex),td=new Date();td.setHours(0,0,0,0);
+    const tds=fmtDate(td);
+    if(p==='todayNotDone') list=list.filter(s=>{if(isAbsent(s.name,tds))return false;const ci=checkIns[ciKey(s.name,tds)]||{};return CATEGORIES.filter(c=>ci[c]).length<DAY_PASS;});
+    if(p==='weekNotPassed') list=list.filter(s=>!computeWeek(s.name,ds,td).passed);
+  }
+  return list;
+}
+function populateGradeFilter(){
+  const sel=document.getElementById('gradeFilter'); if(!sel||!students.length) return;
+  const cur=sel.value;
+  const order=['TK','K','1st','2nd','3rd','4th','5th','6th','7th','8th'];
+  const grades=[...new Set(students.map(s=>String(s.grade||'').trim()).filter(Boolean))];
+  grades.sort((a,b)=>{const ia=order.indexOf(a),ib=order.indexOf(b);return(ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b);});
+  sel.innerHTML='<option value="all">All Grades</option>'+grades.map(g=>'<option value="'+g+'">'+g+'</option>').join('');
+  if([...sel.options].some(o=>o.value===cur)) sel.value=cur;
+}
 
 // ─── Compute week stats for a student ───
 function computeWeek(name, ds, today){
@@ -222,7 +244,7 @@ function computeWeek(name, ds, today){
 }
 
 // ─── Render ───
-function renderAll(){renderWeekLabel();renderTableHeader();renderTableBody();renderStats();}
+function renderAll(){populateGradeFilter();renderWeekLabel();renderTableHeader();renderTableBody();renderStats();}
 function renderWeekLabel(){const w=calendar[currentWeekIndex],l=w?w.label:'Week '+(currentWeekIndex+1),ds=getWeekDates(currentWeekIndex),dr=ds.length>=5?fmtShort(ds[0])+' \u2013 '+fmtShort(ds[4]):'';document.getElementById('weekLabel').innerHTML=l+'<br><span class="week-date">'+dr+'</span>';}
 
 function renderTableHeader(){
