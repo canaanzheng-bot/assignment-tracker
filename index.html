@@ -12,6 +12,7 @@
 *{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
 .header{background:var(--primary);color:#fff;padding:0 32px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.15)}.header-left{display:flex;align-items:center;gap:14px}.header-logo{font-family:'Fraunces',serif;font-size:22px;font-weight:700}.header-divider{width:1px;height:28px;background:rgba(255,255,255,.25)}.header-subtitle{font-size:13px;opacity:.8}.header-actions{display:flex;align-items:center;gap:10px}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;border:none;transition:var(--transition);white-space:nowrap}.btn-ghost{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.15)}.btn-ghost:hover{background:rgba(255,255,255,.22)}.btn-solid{background:var(--primary);color:#fff}.btn-solid:hover{background:var(--primary-hover)}.btn-outline{background:transparent;color:var(--primary);border:1.5px solid var(--border)}.btn-outline:hover{background:var(--primary-light);border-color:var(--primary)}.btn-sm{padding:5px 10px;font-size:12px}
+.sync-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;transition:var(--transition)}.sync-badge.ok{background:rgba(255,255,255,.14);color:#DFF5E6}.sync-badge.pending{background:#F39C12;color:#3A2A00}.sync-badge.error{background:var(--danger);color:#fff}
 .back-btn{display:none;align-items:center;gap:6px;background:none;border:none;color:#fff;font-family:inherit;font-size:14px;cursor:pointer;padding:6px 0;opacity:.9}.back-btn:hover{opacity:1}.back-btn svg{width:18px;height:18px}
 .main{max-width:1280px;margin:0 auto;padding:28px 32px 60px}
 .week-bar{display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap}.week-nav{display:flex;align-items:center;gap:2px;background:var(--card);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow-sm);overflow:hidden}.week-nav-btn{background:none;border:none;padding:10px 12px;cursor:pointer;color:var(--text-secondary);transition:var(--transition);display:flex;align-items:center}.week-nav-btn:hover{background:var(--primary-light);color:var(--primary)}.week-nav-btn svg{width:16px;height:16px}.week-label{font-weight:600;font-size:15px;padding:0 8px;min-width:200px;text-align:center}.week-date{font-size:13px;color:var(--text-muted);font-weight:400}.week-bar-right{margin-left:auto;display:flex;gap:8px}
@@ -46,6 +47,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}thead th{padding:12px 
     <div class="header-subtitle" id="headerSubtitle">Assignment Tracker</div>
   </div>
   <div class="header-actions">
+    <div class="sync-badge ok" id="syncBadge" title="Save status">✓ All saved</div>
     <button class="btn btn-ghost" onclick="openCalendarModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Calendar</button>
     <button class="btn btn-ghost" onclick="refreshData()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Refresh</button>
   </div>
@@ -178,6 +180,8 @@ async function loadAllData(){
     showToast('Check-in data is loading slowly — retrying…');
     setTimeout(refreshCheckInsOnly,5000);
   }
+  flushPending();
+  startAutoSync();
   document.getElementById('loadingState').style.display='none';
 }
 
@@ -185,12 +189,17 @@ async function loadAllData(){
 function applyCheckIns(rawC){
   const localCI=checkIns, localAb=absences;
   const api=parseCheckIns(rawC);
-  checkIns=api.checkIns; absences=api.absences;
+  const srvCI=api.checkIns, srvAb=api.absences;
+  checkIns=srvCI; absences=srvAb;
   for(const k of Object.keys(_pending)){
+    const want=localCI[k]||{}, got=srvCI[k]||{};
+    const same = (!!localAb[k]===!!srvAb[k]) && CATEGORIES.every(function(c){return !!want[c]===!!got[c];});
+    if(same){ delete _pending[k]; continue; }   // server already has it \u2192 no longer pending
+    // Not on the server yet: keep this device's value visible AND still queued.
     if(localCI[k]) checkIns[k]=localCI[k]; else delete checkIns[k];
     if(localAb[k]) absences[k]=true; else delete absences[k];
   }
-  saveToLocal();
+  saveToLocal(); updateSyncBadge();
 }
 
 // Retry ONLY the check-ins feed; roster + calendar are already on screen.
@@ -308,61 +317,122 @@ function renderStats(){
   document.getElementById('statPassSub').textContent=weekPassCnt+' of '+filtered.length+' passed';
 }
 
-// ─── Save System: localStorage instant + background API sync ───
+// ─── Save System: localStorage instant + VERIFIED background sync ───
+// Hard rule #1: a pending write is cleared ONLY when the sheet confirms success:true.
+// Hard rule #2: every device re-pulls server state periodically so all tabs converge.
 var _syncTimers = {};
 var _syncInFlight = {};
+var _pollTimer = null;
+var _lastSyncError = null;
+
+function pendingCount(){ return Object.keys(_pending).length; }
+function updateSyncBadge(){
+  const el=document.getElementById('syncBadge'); if(!el) return;
+  const n=pendingCount();
+  if(n===0){ el.className='sync-badge ok'; el.textContent='\u2713 All saved'; el.title='All check-ins saved to the sheet'; }
+  else if(_lastSyncError){ el.className='sync-badge error'; el.textContent='\u26A0 '+n+' unsaved \u2014 retrying'; el.title='Kept safely on this device. Retrying: '+_lastSyncError; }
+  else { el.className='sync-badge pending'; el.textContent='\u25CF Saving '+n+'\u2026'; el.title='Writing to the sheet\u2026'; }
+}
 
 function saveAndSync(name, date) {
-  // Mark this student-day dirty until the sheet confirms the write
-  _pending[ciKey(name,date)]=true;
-  // Step 1: Save to localStorage INSTANTLY (this is what survives refresh)
+  // Mark dirty (payload stored, not just a flag) and persist instantly.
+  _pending[ciKey(name,date)]={name:name,date:date,ts:Date.now()};
   saveToLocal();
-
-  // Step 2: Queue background sync to Google Sheets (debounced 2s)
+  updateSyncBadge();
   const timerKey = name + '-' + date;
   clearTimeout(_syncTimers[timerKey]);
-  _syncTimers[timerKey] = setTimeout(function() { bgSync(name, date); }, 2000);
+  _syncTimers[timerKey] = setTimeout(function() { bgSync(name, date); }, 1200);
+}
+
+// POST that RESOLVES ONLY on a confirmed {success:true} from Apps Script.
+// Anything else (network error, HTML error page, missing success) THROWS,
+// so the caller can never mistake a failed write for a saved one.
+async function apiPostVerified(data){
+  let txt=null;
+  try{
+    const r=await fetch(API,{method:'POST',credentials:'omit',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data)});
+    txt=await r.text();
+  }catch(e){
+    txt=await new Promise(function(res,rej){
+      const x=new XMLHttpRequest();
+      x.open('POST',API,true);
+      x.setRequestHeader('Content-Type','text/plain;charset=utf-8');
+      x.onload=function(){res(x.responseText);};
+      x.onerror=function(){rej(new Error('network'));};
+      x.send(JSON.stringify(data));
+    });
+  }
+  let j=null;
+  try{ j=JSON.parse(txt); }catch(e){ throw new Error('bad response: '+String(txt).slice(0,60)); }
+  if(!j || j.success!==true) throw new Error('not confirmed: '+String(txt).slice(0,60));
+  return j;
+}
+
+function rowPayload(name,date){
+  const ci=checkIns[ciKey(name,date)]||{};
+  return {action:'saveRow',studentName:name,date:date,
+    Math:!!ci.Math,Chinese:!!ci.Chinese,Journal:!!ci.Journal,Homework:!!ci.Homework,
+    Absent:isAbsent(name,date)};
 }
 
 async function bgSync(name, date) {
   const timerKey = name + '-' + date;
-  if (_syncInFlight[timerKey]) return; // skip if already syncing
+  if (_syncInFlight[timerKey]) return;
   _syncInFlight[timerKey] = true;
-
-  const key = ciKey(name, date);
-  const ci = checkIns[key] || {};
-  const absent = isAbsent(name, date);
-
   try {
-    await apiPost({
-      action: 'saveRow',
-      studentName: name, date: date,
-      Math: !!ci.Math, Chinese: !!ci.Chinese,
-      Journal: !!ci.Journal, Homework: !!ci.Homework,
-      Absent: absent
-    });
-    delete _pending[ciKey(name,date)]; saveToLocal();
-    console.log('Synced to sheets:', name, date);
+    await apiPostVerified(rowPayload(name,date));
+    delete _pending[ciKey(name,date)];      // cleared ONLY after confirmation
+    _lastSyncError=null; saveToLocal(); updateSyncBadge();
   } catch(e) {
-    console.error('Sync failed:', name, date, e);
-    // Retry once after 5 seconds
-    setTimeout(function() { bgSync(name, date); }, 5000);
+    _lastSyncError = String((e&&e.message)||e);
+    console.error('Sync failed \u2014 kept pending:', name, date, _lastSyncError);
+    updateSyncBadge();
+    setTimeout(function() { bgSync(name, date); }, 5000);   // keeps retrying forever
   } finally {
     _syncInFlight[timerKey] = false;
   }
 }
 
-// Sync all pending changes before user leaves the page
+// Retry EVERY unsaved write. Runs on load, on a timer, on reconnect, on tab focus.
+async function flushPending(){
+  const keys=Object.keys(_pending);
+  if(!keys.length){ updateSyncBadge(); return; }
+  for(const k of keys){
+    const p=_pending[k];
+    const name=(p&&p.name)||k.slice(0,-11);
+    const date=(p&&p.date)||k.slice(-10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    try{
+      await apiPostVerified(rowPayload(name,date));
+      delete _pending[k]; _lastSyncError=null; saveToLocal();
+    }catch(e){ _lastSyncError=String((e&&e.message)||e); }
+  }
+  updateSyncBadge();
+}
+
+// Keep every device in step: flush our writes, then pull everyone else's.
+function startAutoSync(){
+  clearInterval(_pollTimer);
+  _pollTimer=setInterval(async function(){
+    if(document.hidden) return;
+    await flushPending();
+    try{ applyCheckIns(await apiFetch('getCheckIns')); renderAll(); }catch(e){}
+  }, 60000);
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden){ flushPending().then(refreshCheckInsOnly).catch(function(){}); }
+  });
+  window.addEventListener('online',function(){
+    flushPending().then(refreshCheckInsOnly).catch(function(){});
+  });
+}
+
+// Sync all pending changes before user leaves the page (best effort; pending NOT cleared)
 window.addEventListener('beforeunload', function() {
-  Object.keys(_syncTimers).forEach(function(key) {
-    clearTimeout(_syncTimers[key]);
-    // key is name+'-'+date; the date is the trailing YYYY-MM-DD (10 chars)
-    const date=key.slice(-10), name=key.slice(0,-11);
-    const ci=checkIns[ciKey(name,date)]||{};
-    const payload=JSON.stringify({action:'saveRow',studentName:name,date:date,
-      Math:!!ci.Math,Chinese:!!ci.Chinese,Journal:!!ci.Journal,Homework:!!ci.Homework,
-      Absent:isAbsent(name,date)});
-    try{navigator.sendBeacon(API,new Blob([payload],{type:'text/plain;charset=utf-8'}));}catch(e){}
+  Object.keys(_pending).forEach(function(k) {
+    const p=_pending[k];
+    const name=(p&&p.name)||k.slice(0,-11), date=(p&&p.date)||k.slice(-10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    try{ navigator.sendBeacon(API,new Blob([JSON.stringify(rowPayload(name,date))],{type:'text/plain;charset=utf-8'})); }catch(e){}
   });
 });
 
