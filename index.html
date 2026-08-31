@@ -97,8 +97,12 @@ function isAbsent(name,date){ return !!absences[name+'-'+date]; }
 function ciKey(n,d){ return n+'-'+d; }
 
 // ─── API (Safari-compatible) ───
-async function apiFetch(action){
-  const url=`${API}?action=${encodeURIComponent(action)}`;
+async function apiFetch(action, params){
+  let url=`${API}?action=${encodeURIComponent(action)}`;
+  if(params) for(const k of Object.keys(params)){
+    if(params[k]!==null && params[k]!==undefined && params[k]!=='')
+      url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }
   try{const r=await fetch(url,{credentials:'omit',redirect:'follow'});const t=await r.text();if(t&&!t.trim().startsWith('<'))return JSON.parse(t);}catch(e){}
   return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open('GET',url,true);x.onload=function(){try{if(x.responseText&&!x.responseText.trim().startsWith('<'))res(JSON.parse(x.responseText));else rej(new Error('HTML'));}catch(e){rej(e);}};x.onerror=function(){rej(new Error('network'));};x.send();});
 }
@@ -178,19 +182,47 @@ async function loadAllData(){
   }else{
     console.error('getCheckIns failed:',rC.reason);
     showToast('Check-in data is loading slowly — retrying…');
-    setTimeout(refreshCheckInsOnly,5000);
+    setTimeout(function(){ refreshCheckInsOnly(true); },5000);
   }
   flushPending();
   startAutoSync();
   document.getElementById('loadingState').style.display='none';
 }
 
+// How far back a routine poll asks the sheet for. Covers the last 8 weeks AND
+// whatever week the teacher is currently looking at, so an older week they've
+// navigated to still refreshes from other devices.
+var SYNC_WINDOW_DAYS = 56;
+function syncSince(){
+  const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-SYNC_WINDOW_DAYS);
+  let since=fmtDate(d);
+  const wk=getWeekDates(currentWeekIndex);
+  if(wk && wk.length){
+    const w=new Date(wk[0]); w.setDate(w.getDate()-7);
+    const ws=fmtDate(w);
+    if(ws<since) since=ws;
+  }
+  return since;
+}
+
 // Merge server check-ins over local state, preserving un-synced local edits (_pending).
-function applyCheckIns(rawC){
+// With `since`, the server only sent us dates >= since, so anything older that we
+// already hold must be carried over untouched instead of being treated as deleted.
+function applyCheckIns(rawC, since){
   const localCI=checkIns, localAb=absences;
   const api=parseCheckIns(rawC);
-  const srvCI=api.checkIns, srvAb=api.absences;
-  checkIns=srvCI; absences=srvAb;
+  const srvCI=api.checkIns, srvAb=api.absences;   // what the server ACTUALLY returned
+  let baseCI=srvCI, baseAb=srvAb;
+  if(since){
+    // Carry over anything older than the window into the view — but keep srvCI/srvAb
+    // untouched, because the pending check below must compare against the real
+    // server state, not against a copy of our own local value.
+    baseCI=Object.assign({},srvCI); baseAb=Object.assign({},srvAb);
+    const older=function(k){ return k.slice(-10) < since; };
+    Object.keys(localCI).forEach(function(k){ if(older(k) && !baseCI[k]) baseCI[k]=localCI[k]; });
+    Object.keys(localAb).forEach(function(k){ if(older(k) && !baseAb[k]) baseAb[k]=true; });
+  }
+  checkIns=baseCI; absences=baseAb;
   for(const k of Object.keys(_pending)){
     const want=localCI[k]||{}, got=srvCI[k]||{};
     const same = (!!localAb[k]===!!srvAb[k]) && CATEGORIES.every(function(c){return !!want[c]===!!got[c];});
@@ -202,11 +234,13 @@ function applyCheckIns(rawC){
   saveToLocal(); updateSyncBadge();
 }
 
-// Retry ONLY the check-ins feed; roster + calendar are already on screen.
-async function refreshCheckInsOnly(){
+// Retry / refresh ONLY the check-ins feed; roster + calendar are already on screen.
+// `full` forces the whole history (used when we have nothing cached yet).
+async function refreshCheckInsOnly(full){
+  const since = full ? null : syncSince();
   try{
-    applyCheckIns(await apiFetch('getCheckIns')); renderAll();
-  }catch(e){ console.error('check-in retry failed:',e); setTimeout(refreshCheckInsOnly,8000); }
+    applyCheckIns(await apiFetch('getCheckIns', since?{since:since}:null), since); renderAll();
+  }catch(e){ console.error('check-in retry failed:',e); setTimeout(function(){refreshCheckInsOnly(full);},8000); }
 }
 function autoSelectWeek(){const t=new Date();t.setHours(0,0,0,0);let b=0,bd=Infinity;calendar.forEach((w,i)=>{const m=parseDate(w.mondayDate);if(!m)return;const f=new Date(m);f.setDate(f.getDate()+4);if(t>=m&&t<=f){b=i;bd=0;}else{const d=Math.abs(t-m);if(d<bd){bd=d;b=i;}}});currentWeekIndex=b;}
 function getWeekDates(wi){const w=calendar[wi];if(!w)return[];const m=parseDate(w.mondayDate);if(!m)return[];return Array.from({length:5},(_,i)=>{const d=new Date(m);d.setDate(d.getDate()+i);return d;});}
@@ -483,13 +517,14 @@ function startAutoSync(){
   _pollTimer=setInterval(async function(){
     if(document.hidden) return;
     await flushPending();
-    try{ applyCheckIns(await apiFetch('getCheckIns')); renderAll(); }catch(e){}
+    const since=syncSince();
+    try{ applyCheckIns(await apiFetch('getCheckIns',{since:since}), since); renderAll(); }catch(e){}
   }, 60000);
   document.addEventListener('visibilitychange',function(){
-    if(!document.hidden){ flushPending().then(refreshCheckInsOnly).catch(function(){}); }
+    if(!document.hidden){ flushPending().then(function(){ return refreshCheckInsOnly(false); }).catch(function(){}); }
   });
   window.addEventListener('online',function(){
-    flushPending().then(refreshCheckInsOnly).catch(function(){});
+    flushPending().then(function(){ return refreshCheckInsOnly(false); }).catch(function(){});
   });
 }
 
