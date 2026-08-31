@@ -324,6 +324,14 @@ var _syncTimers = {};
 var _syncInFlight = {};
 var _pollTimer = null;
 var _lastSyncError = null;
+var _flushTimer = null;
+var _flushInFlight = false;
+var _flushAgain = false;
+var _batchSupported = true;      // set false if the sheet API is an older build
+
+var SYNC_DEBOUNCE_MS = 250;      // was 1200 — how long we wait for more clicks
+var SYNC_BATCH_SIZE  = 25;       // rows sent per request
+var SYNC_RETRY_MS    = 5000;
 
 function pendingCount(){ return Object.keys(_pending).length; }
 function updateSyncBadge(){
@@ -339,15 +347,20 @@ function saveAndSync(name, date) {
   _pending[ciKey(name,date)]={name:name,date:date,ts:Date.now()};
   saveToLocal();
   updateSyncBadge();
-  const timerKey = name + '-' + date;
-  clearTimeout(_syncTimers[timerKey]);
-  _syncTimers[timerKey] = setTimeout(function() { bgSync(name, date); }, 1200);
+  // Short debounce so a burst of clicks rides in ONE batched request.
+  scheduleFlush(SYNC_DEBOUNCE_MS);
+}
+
+function scheduleFlush(delay){
+  clearTimeout(_flushTimer);
+  _flushTimer = setTimeout(function(){ flushPending(); },
+    (delay === undefined ? SYNC_DEBOUNCE_MS : delay));
 }
 
 // POST that RESOLVES ONLY on a confirmed {success:true} from Apps Script.
 // Anything else (network error, HTML error page, missing success) THROWS,
 // so the caller can never mistake a failed write for a saved one.
-async function apiPostVerified(data){
+async function apiPostRaw(data){
   let txt=null;
   try{
     const r=await fetch(API,{method:'POST',credentials:'omit',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(data)});
@@ -364,7 +377,12 @@ async function apiPostVerified(data){
   }
   let j=null;
   try{ j=JSON.parse(txt); }catch(e){ throw new Error('bad response: '+String(txt).slice(0,60)); }
-  if(!j || j.success!==true) throw new Error('not confirmed: '+String(txt).slice(0,60));
+  return j;
+}
+
+async function apiPostVerified(data){
+  const j = await apiPostRaw(data);
+  if(!j || j.success!==true) throw new Error('not confirmed: '+JSON.stringify(j).slice(0,60));
   return j;
 }
 
@@ -375,40 +393,89 @@ function rowPayload(name,date){
     Absent:isAbsent(name,date)};
 }
 
-async function bgSync(name, date) {
-  const timerKey = name + '-' + date;
-  if (_syncInFlight[timerKey]) return;
-  _syncInFlight[timerKey] = true;
-  try {
-    await apiPostVerified(rowPayload(name,date));
-    delete _pending[ciKey(name,date)];      // cleared ONLY after confirmation
-    _lastSyncError=null; saveToLocal(); updateSyncBadge();
-  } catch(e) {
-    _lastSyncError = String((e&&e.message)||e);
-    console.error('Sync failed \u2014 kept pending:', name, date, _lastSyncError);
-    updateSyncBadge();
-    setTimeout(function() { bgSync(name, date); }, 5000);   // keeps retrying forever
-  } finally {
-    _syncInFlight[timerKey] = false;
+function samePayload(a,b){
+  return !!a && !!b && a.Math===b.Math && a.Chinese===b.Chinese && a.Journal===b.Journal
+      && a.Homework===b.Homework && a.Absent===b.Absent;
+}
+
+// Clear a pending write ONLY if the sheet confirmed it AND the teacher has not
+// clicked that same cell again while the request was in flight.
+function clearIfUnchanged(job){
+  if(!_pending[job.key]) return;
+  if(samePayload(rowPayload(job.name,job.date), job.payload)) delete _pending[job.key];
+}
+
+// Send up to SYNC_BATCH_SIZE rows in ONE request. Falls back to one-at-a-time
+// if the sheet API doesn't understand batches.
+async function pushChunk(chunk){
+  if(chunk.length===1 || !_batchSupported){
+    let firstErr=null;
+    for(const job of chunk){
+      try{ await apiPostVerified(job.payload); clearIfUnchanged(job); }
+      catch(e){ if(!firstErr) firstErr=e; }
+    }
+    if(firstErr) throw firstErr;
+    return;
   }
+
+  const res = await apiPostRaw({action:'saveRows', rows: chunk.map(function(job){
+    return {studentName:job.name, date:job.date,
+      Math:job.payload.Math, Chinese:job.payload.Chinese, Journal:job.payload.Journal,
+      Homework:job.payload.Homework, Absent:job.payload.Absent};
+  })});
+
+  if(!res || res.success!==true || !Array.isArray(res.results)){
+    _batchSupported = false;                 // older sheet API: retry row by row
+    return pushChunk(chunk);
+  }
+
+  let failed=0;
+  for(let i=0;i<chunk.length;i++){
+    if(res.results[i] && res.results[i].success===true) clearIfUnchanged(chunk[i]);
+    else failed++;
+  }
+  if(failed) throw new Error(failed+' of '+chunk.length+' row(s) not confirmed');
 }
 
 // Retry EVERY unsaved write. Runs on load, on a timer, on reconnect, on tab focus.
 async function flushPending(){
+  if(_flushInFlight){ _flushAgain = true; return; }
+  clearTimeout(_flushTimer);
+
   const keys=Object.keys(_pending);
-  if(!keys.length){ updateSyncBadge(); return; }
-  for(const k of keys){
-    const p=_pending[k];
-    const name=(p&&p.name)||k.slice(0,-11);
-    const date=(p&&p.date)||k.slice(-10);
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-    try{
-      await apiPostVerified(rowPayload(name,date));
-      delete _pending[k]; _lastSyncError=null; saveToLocal();
-    }catch(e){ _lastSyncError=String((e&&e.message)||e); }
+  if(!keys.length){ _lastSyncError=null; updateSyncBadge(); return; }
+
+  _flushInFlight = true;
+  try{
+    // Snapshot what we are about to send, so edits made mid-flight stay pending.
+    const jobs=[];
+    for(const k of keys){
+      const p=_pending[k];
+      const name=(p&&p.name)||k.slice(0,-11);
+      const date=(p&&p.date)||k.slice(-10);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ delete _pending[k]; continue; }
+      jobs.push({key:k, name:name, date:date, payload:rowPayload(name,date)});
+    }
+
+    let err=null;
+    for(let i=0;i<jobs.length;i+=SYNC_BATCH_SIZE){
+      try{ await pushChunk(jobs.slice(i,i+SYNC_BATCH_SIZE)); }
+      catch(e){ if(!err) err=String((e&&e.message)||e); }
+    }
+
+    _lastSyncError = err;
+    saveToLocal();
+    updateSyncBadge();
+    if(err) console.error('Sync failed \u2014 kept pending:', err);
+    if(pendingCount()) scheduleFlush(err ? SYNC_RETRY_MS : 0);  // never give up
+  } finally {
+    _flushInFlight = false;
+    if(_flushAgain){ _flushAgain=false; scheduleFlush(0); }
   }
-  updateSyncBadge();
 }
+
+// Kept so any older call site still works.
+function bgSync(name, date){ saveAndSync(name, date); }
 
 // Keep every device in step: flush our writes, then pull everyone else's.
 function startAutoSync(){
@@ -428,12 +495,28 @@ function startAutoSync(){
 
 // Sync all pending changes before user leaves the page (best effort; pending NOT cleared)
 window.addEventListener('beforeunload', function() {
+  const rows=[];
   Object.keys(_pending).forEach(function(k) {
     const p=_pending[k];
     const name=(p&&p.name)||k.slice(0,-11), date=(p&&p.date)||k.slice(-10);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
-    try{ navigator.sendBeacon(API,new Blob([JSON.stringify(rowPayload(name,date))],{type:'text/plain;charset=utf-8'})); }catch(e){}
+    const pl=rowPayload(name,date);
+    rows.push({studentName:name,date:date,Math:pl.Math,Chinese:pl.Chinese,
+      Journal:pl.Journal,Homework:pl.Homework,Absent:pl.Absent});
   });
+  if(!rows.length) return;
+  const body = _batchSupported ? JSON.stringify({action:'saveRows',rows:rows}) : null;
+  try{
+    if(body){
+      navigator.sendBeacon(API,new Blob([body],{type:'text/plain;charset=utf-8'}));
+    } else {
+      rows.forEach(function(r){
+        navigator.sendBeacon(API,new Blob([JSON.stringify(
+          {action:'saveRow',studentName:r.studentName,date:r.date,Math:r.Math,Chinese:r.Chinese,
+           Journal:r.Journal,Homework:r.Homework,Absent:r.Absent})],{type:'text/plain;charset=utf-8'}));
+      });
+    }
+  }catch(e){}
 });
 
 // ─── Toggle Absent ───
