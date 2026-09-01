@@ -93,8 +93,12 @@ let students=[], checkIns={}, absences={}, calendar=[], currentWeekIndex=0, _pen
 
 // Absent day excluded: if present 5→need 4, present 4→need 3, present 3→need 2, etc.
 function weekPassThreshold(presentDays){ return Math.max(1, presentDays-1); }
-function isAbsent(name,date){ return !!absences[name+'-'+date]; }
-function ciKey(n,d){ return n+'-'+d; }
+// The sheet API trims student names, so every key this page builds must be trimmed
+// too — otherwise a roster name with a stray space (e.g. "Aditya Asgekar ") keys a
+// separate, unreachable set of records and nothing that teacher clicks ever sticks.
+function normName(n){ return String(n==null?'':n).trim(); }
+function isAbsent(name,date){ return !!absences[ciKey(name,date)]; }
+function ciKey(n,d){ return normName(n)+'-'+d; }
 
 // ─── API (Safari-compatible) ───
 async function apiFetch(action, params){
@@ -114,15 +118,15 @@ async function apiPost(data){
 // ─── Parse ───
 function parseDateString(s){if(!s)return null;s=String(s).trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const d=new Date(s);if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return null;}
 function parseDate(s){const n=parseDateString(s);if(!n)return null;const[y,m,d]=n.split('-').map(Number);return new Date(y,m-1,d);}
-function parseStudents(raw){const arr=raw.students||raw.data||(Array.isArray(raw)?raw:[]);return arr.map((s,i)=>({id:String(i),name:s.name||s.Name||'',school:s.school||s.schoolName||'',grade:s.grade||s.currentGrade||'',status:s.status||s.Status||'Active'})).filter(s=>s.name);}
+function parseStudents(raw){const arr=raw.students||raw.data||(Array.isArray(raw)?raw:[]);return arr.map((s,i)=>({id:String(i),name:normName(s.name||s.Name||''),school:s.school||s.schoolName||'',grade:s.grade||s.currentGrade||'',status:s.status||s.Status||'Active'})).filter(s=>s.name);}
 function parseCheckIns(raw){
   const obj=raw.checkIns||raw.data||raw, result={}, abs={};
   if(typeof obj==='object'&&!Array.isArray(obj)){
     for(const sn of Object.keys(obj)){const dObj=obj[sn];if(typeof dObj!=='object')continue;
-      for(const ds of Object.keys(dObj)){const dk=parseDateString(ds);if(!dk)continue;const cats=dObj[ds],key=sn+'-'+dk;result[key]={};
+      for(const ds of Object.keys(dObj)){const dk=parseDateString(ds);if(!dk)continue;const cats=dObj[ds],key=ciKey(sn,dk);result[key]={};
         CATEGORIES.forEach(c=>{if(cats[c]===true||cats[c]==='TRUE'||cats[c]===1)result[key][c]=true;});
         // Absent flag from the sheet (Absent column)
-        if(cats.Absent===true||cats.absent===true||cats.Absent==='TRUE')abs[sn+'-'+dk]=true;
+        if(cats.Absent===true||cats.absent===true||cats.Absent==='TRUE')abs[ciKey(sn,dk)]=true;
       }}
   }
   return {checkIns:result, absences:abs};
@@ -146,6 +150,59 @@ function loadFromLocal(){
     if(ab) absences=JSON.parse(ab);
     if(pd) _pending=JSON.parse(pd);
   }catch(e){}
+  normalizeLocalKeys();
+}
+
+// One-time repair for records cached under an un-trimmed student name.
+// Those keys could never match the sheet, so the marks were stranded on the device.
+// We move them onto the trimmed key and queue them so they finally reach the sheet.
+// On a collision we keep BOTH sides' ticks — this must never erase a mark.
+function normalizeLocalKeys(){
+  const DATE=/^\d{4}-\d{2}-\d{2}$/;
+  let moved=0, mergedRecords=0;
+
+  Object.keys(checkIns).forEach(function(k){
+    const d=k.slice(-10), n=k.slice(0,-11);
+    if(!DATE.test(d) || n===n.trim()) return;
+    const nk=n.trim()+'-'+d;
+    if(checkIns[nk]){
+      const keep=checkIns[nk], old=checkIns[k]||{};
+      CATEGORIES.forEach(function(c){ if(old[c]) keep[c]=true; });
+      mergedRecords++;
+    } else {
+      checkIns[nk]=checkIns[k];
+    }
+    delete checkIns[k];
+    _pending[nk]={name:n.trim(),date:d,ts:Date.now()};
+    moved++;
+  });
+
+  Object.keys(absences).forEach(function(k){
+    const d=k.slice(-10), n=k.slice(0,-11);
+    if(!DATE.test(d) || n===n.trim()) return;
+    const nk=n.trim()+'-'+d;
+    absences[nk]=true; delete absences[k];
+    _pending[nk]={name:n.trim(),date:d,ts:Date.now()};
+    moved++;
+  });
+
+  Object.keys(_pending).forEach(function(k){
+    const d=k.slice(-10), n=k.slice(0,-11);
+    if(!DATE.test(d)) return;
+    if(n!==n.trim()){
+      const nk=n.trim()+'-'+d;
+      if(!_pending[nk]) _pending[nk]={name:n.trim(),date:d,ts:Date.now()};
+      delete _pending[k]; moved++;
+    } else if(_pending[k] && _pending[k].name){
+      _pending[k].name=normName(_pending[k].name);
+    }
+  });
+
+  if(moved){
+    saveToLocal();
+    console.log('Repaired '+moved+' record(s) stored under an un-trimmed name ('+mergedRecords+' merged).');
+  }
+  return {moved:moved, merged:mergedRecords};
 }
 
 // ─── Load ───
@@ -378,7 +435,7 @@ function updateSyncBadge(){
 
 function saveAndSync(name, date) {
   // Mark dirty (payload stored, not just a flag) and persist instantly.
-  _pending[ciKey(name,date)]={name:name,date:date,ts:Date.now()};
+  _pending[ciKey(name,date)]={name:normName(name),date:date,ts:Date.now()};
   saveToLocal();
   updateSyncBadge();
   // Short debounce so a burst of clicks rides in ONE batched request.
@@ -422,7 +479,7 @@ async function apiPostVerified(data){
 
 function rowPayload(name,date){
   const ci=checkIns[ciKey(name,date)]||{};
-  return {action:'saveRow',studentName:name,date:date,
+  return {action:'saveRow',studentName:normName(name),date:date,
     Math:!!ci.Math,Chinese:!!ci.Chinese,Journal:!!ci.Journal,Homework:!!ci.Homework,
     Absent:isAbsent(name,date)};
 }
@@ -485,7 +542,7 @@ async function flushPending(){
     const jobs=[];
     for(const k of keys){
       const p=_pending[k];
-      const name=(p&&p.name)||k.slice(0,-11);
+      const name=normName((p&&p.name)||k.slice(0,-11));
       const date=(p&&p.date)||k.slice(-10);
       if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ delete _pending[k]; continue; }
       jobs.push({key:k, name:name, date:date, payload:rowPayload(name,date)});
@@ -533,7 +590,7 @@ window.addEventListener('beforeunload', function() {
   const rows=[];
   Object.keys(_pending).forEach(function(k) {
     const p=_pending[k];
-    const name=(p&&p.name)||k.slice(0,-11), date=(p&&p.date)||k.slice(-10);
+    const name=normName((p&&p.name)||k.slice(0,-11)), date=(p&&p.date)||k.slice(-10);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
     const pl=rowPayload(name,date);
     rows.push({studentName:name,date:date,Math:pl.Math,Chinese:pl.Chinese,
@@ -556,7 +613,7 @@ window.addEventListener('beforeunload', function() {
 
 // ─── Toggle Absent ───
 function toggleAbsent(name,date,btn){
-  const key=name+'-'+date;
+  const key=ciKey(name,date);
   const newVal=!absences[key];
   if(newVal) absences[key]=true; else delete absences[key];
   renderTableBody(); renderStats();
