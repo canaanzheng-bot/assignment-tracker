@@ -206,7 +206,21 @@ function normalizeLocalKeys(){
 }
 
 // ─── Load ───
+// A slow sheet used to turn into a request pile-up: the retry fired every 5s
+// regardless of whether the previous attempt had finished, so a 70-second
+// getStudents ended up with a dozen overlapping loads all queueing behind
+// each other. Two guards now: only ONE load may be in flight, and each failed
+// attempt waits longer than the last (5s, 10s, 20s, then 30s).
+var LOAD_RETRY_MS = [5000, 10000, 20000, 30000];
+var _loadAttempt = 0, _ciAttempt = 0, _loadInFlight = false;
+function backoffMs(attempt){
+  return LOAD_RETRY_MS[Math.min(attempt, LOAD_RETRY_MS.length-1)];
+}
+
 async function loadAllData(){
+  if(_loadInFlight) return;          // previous attempt still running — don't stack
+  _loadInFlight = true;
+  try{
   document.getElementById('loadingState').style.display='block';
 
   // Step 1: Load from localStorage INSTANTLY (survives refresh / offline)
@@ -224,12 +238,14 @@ async function loadAllData(){
   if(rCal.status==='fulfilled') calendar=parseCalendar(rCal.value);
 
   if(students.length>0){
+    _loadAttempt=0;                              // recovered — reset the backoff
     autoSelectWeek(); renderAll();               // paint roster + grid ASAP
   }else{
     // No roster at all (first-ever load AND students call failed): retry all.
     document.getElementById('loadingState').style.display='none';
-    showToast('Failed to load students. Retrying…',true);
-    setTimeout(loadAllData,5000); return;
+    const wait=backoffMs(_loadAttempt++);
+    showToast('Failed to load students. Retrying in '+Math.round(wait/1000)+'s…',true);
+    setTimeout(loadAllData,wait); return;
   }
 
   // Check-ins: apply if we got them; otherwise keep the cached copy on screen
@@ -239,11 +255,14 @@ async function loadAllData(){
   }else{
     console.error('getCheckIns failed:',rC.reason);
     showToast('Check-in data is loading slowly — retrying…');
-    setTimeout(function(){ refreshCheckInsOnly(true); },5000);
+    setTimeout(function(){ refreshCheckInsOnly(true); }, backoffMs(_ciAttempt++));
   }
   flushPending();
   startAutoSync();
   document.getElementById('loadingState').style.display='none';
+  } finally {
+    _loadInFlight = false;
+  }
 }
 
 // How far back a routine poll asks the sheet for. Covers the last 8 weeks AND
@@ -297,7 +316,11 @@ async function refreshCheckInsOnly(full){
   const since = full ? null : syncSince();
   try{
     applyCheckIns(await apiFetch('getCheckIns', since?{since:since}:null), since); renderAll();
-  }catch(e){ console.error('check-in retry failed:',e); setTimeout(function(){refreshCheckInsOnly(full);},8000); }
+    _ciAttempt=0;                                // recovered — reset the backoff
+  }catch(e){
+    console.error('check-in retry failed:',e);
+    setTimeout(function(){refreshCheckInsOnly(full);}, backoffMs(_ciAttempt++));
+  }
 }
 function autoSelectWeek(){const t=new Date();t.setHours(0,0,0,0);let b=0,bd=Infinity;calendar.forEach((w,i)=>{const m=parseDate(w.mondayDate);if(!m)return;const f=new Date(m);f.setDate(f.getDate()+4);if(t>=m&&t<=f){b=i;bd=0;}else{const d=Math.abs(t-m);if(d<bd){bd=d;b=i;}}});currentWeekIndex=b;}
 function getWeekDates(wi){const w=calendar[wi];if(!w)return[];const m=parseDate(w.mondayDate);if(!m)return[];return Array.from({length:5},(_,i)=>{const d=new Date(m);d.setDate(d.getDate()+i);return d;});}
@@ -569,6 +592,7 @@ async function flushPending(){
 function bgSync(name, date){ saveAndSync(name, date); }
 
 // Keep every device in step: flush our writes, then pull everyone else's.
+var _autoSyncBound = false;
 function startAutoSync(){
   clearInterval(_pollTimer);
   _pollTimer=setInterval(async function(){
@@ -577,6 +601,9 @@ function startAutoSync(){
     const since=syncSince();
     try{ applyCheckIns(await apiFetch('getCheckIns',{since:since}), since); renderAll(); }catch(e){}
   }, 60000);
+  // The listeners below must be registered once, not once per (re)load attempt.
+  if(_autoSyncBound) return;
+  _autoSyncBound = true;
   document.addEventListener('visibilitychange',function(){
     if(!document.hidden){ flushPending().then(function(){ return refreshCheckInsOnly(false); }).catch(function(){}); }
   });
