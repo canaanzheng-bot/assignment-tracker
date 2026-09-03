@@ -4,8 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="接送">
+<meta name="theme-color" content="#0E1621">
 <meta name="robots" content="noindex,nofollow">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
 <title>MSLC 今天谁被接走了</title>
 <style>
   :root{--bg:#0E1621;--card:#18232F;--card2:#1F2C3A;--ink:#F2F6F9;--muted:#8CA0B3;
@@ -72,6 +78,29 @@ var BUSY_FROM = 14, BUSY_TO = 19;      // 下午 2 点到 7 点算接送时段
 var pin = '', rows = [], seen = {}, first = true, timer = null, soundOn = true;
 try { pin = localStorage.getItem('mslc_office_pin') || ''; } catch (e) {}
 try { soundOn = localStorage.getItem('mslc_live_sound') !== '0'; } catch (e) {}
+
+/* 加到主屏幕之后 iOS/Android 会以 standalone 打开，没有地址栏 */
+var standalone = false;
+try { standalone = window.matchMedia('(display-mode: standalone)').matches
+                || navigator.standalone === true; } catch (e) {}
+
+/* 屏幕常亮：办公室那台平板整个接送时段就摆着，别让它自己灭屏 */
+var wakeOn = false, wakeLock = null;
+try { wakeOn = localStorage.getItem('mslc_live_wake') === '1'; } catch (e) {}
+function wakeSupported(){ return 'wakeLock' in navigator; }
+function wakeApply(){
+  if (!wakeSupported()) return;
+  try {
+    if (wakeOn && !wakeLock && !document.hidden) {
+      navigator.wakeLock.request('screen').then(function (w) {
+        wakeLock = w;
+        w.addEventListener('release', function () { wakeLock = null; });
+      })['catch'](function () {});
+    } else if (!wakeOn && wakeLock) {
+      wakeLock.release()['catch'](function () {}); wakeLock = null;
+    }
+  } catch (e) {}
+}
 
 var seq = 0;
 function api(params, cb, errCb) {
@@ -146,6 +175,7 @@ function render(connected){
     '</div>'+
     '<div class="bar">'+
       '<button class="b'+(soundOn?' on':'')+'" id="snd">'+(soundOn?'🔔 提示音开':'🔕 提示音关')+'</button>'+
+      (wakeSupported()?'<button class="b'+(wakeOn?' on':'')+'" id="wake">'+(wakeOn?'💡 常亮开':'💡 屏幕常亮')+'</button>':'')+
       (canNotify?'<button class="b" id="perm">开启手机通知</button>':'')+
       '<button class="b" id="ref">刷新</button>'+
     '</div>'+
@@ -157,12 +187,20 @@ function render(connected){
       }).join('')
       : '<div class="msg">今天还没有人被接走<br>有人签出会自动出现在这里</div>')+
     '<div class="hint">这一页只在你打开着的时候查询；手机锁屏或切到别的 app 就自动停，'+
-      '不会白白消耗额度。<br>加到主屏幕可以当 app 用。</div>';
+      '不会白白消耗额度。'+
+      (standalone?'':'<br>手机上：分享 → <b>添加到主屏幕</b>，就能当 app 用（还能收通知）。')+
+      '</div>';
 
   $('snd').onclick = function(){
     soundOn = !soundOn;
     try{ localStorage.setItem('mslc_live_sound', soundOn?'1':'0'); }catch(e){}
     if(soundOn) ding();
+    render(connected);
+  };
+  if($('wake')) $('wake').onclick = function(){
+    wakeOn = !wakeOn;
+    try{ localStorage.setItem('mslc_live_wake', wakeOn?'1':'0'); }catch(e){}
+    wakeApply();
     render(connected);
   };
   if($('ref')) $('ref').onclick = function(){ poll(); };
@@ -202,8 +240,8 @@ function schedule(){
   timer = setTimeout(poll, busy ? POLL_BUSY : POLL_IDLE);
 }
 document.addEventListener('visibilitychange', function(){
-  if(document.hidden) clearTimeout(timer);
-  else poll();                                // 回到前台立刻刷一次
+  if(document.hidden){ clearTimeout(timer); wakeLock = null; }
+  else { poll(); wakeApply(); }               // 回到前台立刻刷一次，常亮也要重新申请
 });
 
 function boot(){
@@ -216,6 +254,7 @@ function boot(){
   first = true; seen = {};
   render(false);
   poll();
+  wakeApply();
 }
 boot();
 </script>
