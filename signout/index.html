@@ -390,17 +390,23 @@ function renderPair(){
     '<b>3.</b> 点「批准」，这一页会自动进入</div>'+
     '<div class="status"><span class="spin"></span>等待批准中…每 '+CONFIG.PAIR_POLL_SECONDS+' 秒自动检查</div></div>';
 }
-function startPairing(){
-  clearInterval(pairTimer);
-  renderPair();
+function enrollOnce(){
   api({action:'enroll', info:navigator.platform+' / '+screen.width+'x'+screen.height}, function(r){
     if(r && r.ok) S.pair=r;
     renderPair();
   }, function(){ renderPair(); });
+}
+function startPairing(){
+  clearInterval(pairTimer);
+  renderPair();
+  enrollOnce();
   pairTimer=setInterval(function(){
     api({action:'devstatus'}, function(r){
       if(r && r.status==='active'){ clearInterval(pairTimer); S.blocked=''; S.pair=null; hello(); }
       else if(r && r.code && (!S.pair||S.pair.code!==r.code)){ S.pair=r; renderPair(); }
+      // 第一次 enroll 撞上 Apps Script 冷启动超时的话，这里会一直没有码 —— 重试一次，
+      // 否则屏幕上永远停在「……」，只能靠人工刷新页面
+      else if(r && !r.code && !S.pair){ enrollOnce(); }
     }, function(){});
   }, CONFIG.PAIR_POLL_SECONDS*1000);
 }
