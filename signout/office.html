@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>MSLC Sign-Out Records</title>
+<style>
+  :root{--bg:#E9EDF1;--card:#fff;--card2:#F4F6F8;--ink:#16202B;--muted:#5A6874;--line:#D6DDE4;
+        --blue:#1F4E79;--green:#15803D;--green-bg:#DDF3E4;--green-line:#B7E3C6;
+        --red:#B91C1C;--redbg:#FEF2F2;--amber:#8A5A08;--amberbg:#FDF0D5;--amberline:#F0DBA8;
+        --shadow:0 1px 2px rgba(22,32,43,.05),0 4px 14px rgba(22,32,43,.06)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;
+       font:15px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 20px 60px}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:13.5px;margin:0 0 20px}
+
+  .tabs{display:flex;gap:6px;margin-bottom:20px;border-bottom:1px solid var(--line)}
+  .tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:11px 4px;margin-right:20px;
+               font:600 15px/1 inherit;color:var(--muted);cursor:pointer}
+  .tabs button.on{color:var(--ink);border-bottom-color:var(--blue)}
+  .tabs .dot{display:inline-block;min-width:19px;padding:0 6px;height:19px;line-height:19px;border-radius:999px;
+             background:var(--red);color:#fff;font-size:11px;font-weight:700;margin-left:7px;text-align:center}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+  .filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+  .f{display:flex;flex-direction:column;gap:5px}
+  .f label{font-size:11.5px;color:var(--muted);font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+  input,select{font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+  input[type=date]{min-width:150px}
+  button.b{font:600 14px/1 inherit;padding:11px 18px;border-radius:9px;border:1px solid var(--line);
+           background:#fff;cursor:pointer;color:var(--ink)}
+  button.b.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  button.b.ok{background:var(--green);border-color:var(--green);color:#fff}
+  button.b.danger{color:var(--red);border-color:#F3C9C9}
+  button.b.sm{padding:8px 13px;font-size:13px}
+  button.b:active{transform:translateY(1px)}
+  .quick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .quick button{padding:7px 13px;font:500 13px/1 inherit;border-radius:999px;border:1px solid var(--line);
+                background:#fff;color:var(--muted);cursor:pointer}
+  .quick button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 18px;min-width:118px;box-shadow:var(--shadow)}
+  .stat b{display:block;font-size:26px;font-variant-numeric:tabular-nums;line-height:1.2;font-weight:600}
+  .stat span{font-size:12px;color:var(--muted)}
+  .stat.bad b{color:var(--red)}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);
+     padding:0 10px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:11px 10px;border-bottom:1px solid #EFF2F5;vertical-align:middle}
+  tr.late td{background:var(--redbg)}
+  tr.undone td{opacity:.5;text-decoration:line-through}
+  td.t{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tag{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--card2);color:var(--muted)}
+  .tag.late{background:#FEE2E2;color:var(--red)}
+  .tag.ok{background:var(--green-bg);color:var(--green)}
+  .tag.pending{background:var(--amberbg);color:var(--amber)}
+  .tag.off{background:#EEF1F4;color:#94A3B1}
+  .scroll{overflow-x:auto}
+  .msg{color:var(--muted);padding:26px 4px;text-align:center}
+  .note{color:var(--muted);font-size:12.5px;margin-top:16px}
+
+  .lock{max-width:340px;margin:14vh auto;text-align:center}
+  .lock input{width:100%;text-align:center;font-size:22px;letter-spacing:6px;padding:14px}
+  .lock button{width:100%;margin-top:12px}
+  .err{color:var(--red);font-size:13px;height:18px;margin-top:10px}
+
+  .dev{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:16px;border:1px solid var(--line);
+       border-radius:12px;margin-bottom:10px;background:var(--card)}
+  .dev.pending{border-color:var(--amberline);background:var(--amberbg)}
+  .dev .code{font-size:26px;font-weight:700;letter-spacing:3px;font-variant-numeric:tabular-nums;min-width:150px}
+  .dev .who{flex:1;min-width:170px}
+  .dev .who b{display:block;font-size:15px}
+  .dev .who span{font-size:12.5px;color:var(--muted)}
+  .dev .acts{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+var CONFIG = { API_URL: 'https://script.google.com/macros/s/AKfycbw1efC1uiCzBlCZs09ohmkWI9hncUWQF892gFrKuhUVj4YT0Vpz1MatEaI-hg_ws8M8YQ/exec' };   // ← 与 index.html 用同一个 /exec 地址
+var qs=new URLSearchParams(location.search); if(qs.get('api')) CONFIG.API_URL=qs.get('api');
+
+var pin='', rows=[], devices=[], tab='records', devTimer=null;
+var filters={ preset:'today', from:'', to:'', q:'', grade:'', late:false };
+try{ pin=localStorage.getItem('mslc_office_pin')||''; }catch(e){}
+
+var seq=0;
+function api(params, cb, errCb){
+  var name='__oc'+(++seq)+Date.now().toString(36);
+  var url=CONFIG.API_URL+'?callback='+name;
+  Object.keys(params).forEach(function(k){ url+='&'+k+'='+encodeURIComponent(params[k]); });
+  url+='&k='+encodeURIComponent(pin)+'&_='+Date.now();
+  var s=document.createElement('script'), done=false;
+  var t=setTimeout(function(){ if(!done){done=true;clean();errCb&&errCb();} },20000);
+  function clean(){ clearTimeout(t); try{delete window[name];}catch(e){window[name]=undefined;} s.remove(); }
+  window[name]=function(r){ if(done)return; done=true; clean(); cb(r); };
+  s.onerror=function(){ if(done)return; done=true; clean(); errCb&&errCb(); };
+  s.src=url; document.head.appendChild(s);
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function iso(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+/* 「今天」以表格所在时区（America/Los_Angeles）为准，不看这台电脑的时区 ——
+   否则在外地/时区设错的电脑上打开，「今天」会差一天，查出来是空的。
+   开机时问一次服务器，问不到就退回本机日期。 */
+var SERVER_TODAY = '';
+function todayISO(){ return SERVER_TODAY || iso(new Date()); }
+function dayShift(base, n){
+  var p = String(base).split('-');
+  var d = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
+  d.setDate(d.getDate()+n);
+  return iso(d);
+}
+function shift(n){ return dayShift(todayISO(), n); }
+function to12(hhmm){ if(!hhmm) return '';
+  var p=hhmm.split(':'), h=parseInt(p[0],10), m=p[1]||'00', ap=h>=12?'PM':'AM'; h=h%12||12;
+  return h+':'+m+' '+ap; }
+function $(id){ return document.getElementById(id); }
+
+/* ---------- 登录 ---------- */
+function lock(err){
+  $('app').innerHTML='<div class="lock panel"><h1>办公室后台</h1>'+
+    '<p class="sub">签出记录 & 设备管理</p>'+
+    '<input id="p" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">'+
+    '<button class="b primary" id="go">进入</button><div class="err">'+(err?esc(err):'')+'</div></div>';
+  var i=$('p');
+  function go(){ pin=i.value.trim(); try{localStorage.setItem('mslc_office_pin',pin);}catch(e){} boot(); }
+  $('go').onclick=go; i.onkeydown=function(e){ if(e.key==='Enter') go(); }; i.focus();
+}
+
+/* ---------- 外壳 ---------- */
+function chrome(){
+  var pend = devices.filter(function(d){ return d.status==='pending'; }).length;
+  return '<h1>放学签出后台</h1><p class="sub">Pickup sign-out · 记录保留半年，每月自动清理更早的数据</p>'+
+    '<div class="tabs">'+
+      '<button data-t="records" class="'+(tab==='records'?'on':'')+'">签出记录</button>'+
+      '<button data-t="codes" class="'+(tab==='codes'?'on':'')+'">查码</button>'+
+      '<button data-t="devices" class="'+(tab==='devices'?'on':'')+'">设备管理'+
+        (pend?'<span class="dot">'+pend+'</span>':'')+'</button>'+
+    '</div><div id="body"></div>';
+}
+function shell(){
+  $('app').innerHTML=chrome();
+  Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function(b){
+    b.onclick=function(){ switchTab(b.dataset.t); };
+  });
+}
+function switchTab(t){
+  tab=t; clearInterval(devTimer);
+  shell();
+  if(t==='records'){
+    if(!rows.length) preset(filters.preset==='custom'?'today':filters.preset);
+    else { paintRecordsUI(); paintRecords(); }
+  }
+  else if(t==='codes'){ paintCodesUI(); }
+  else { paintDevicesUI(); loadDevices(); devTimer=setInterval(loadDevices, 10000); }
+}
+
+/* ---------- 记录 ---------- */
+function paintRecordsUI(){
+  var f=filters;
+  $('body').innerHTML =
+  '<div class="quick">'+
+    ['today:今天','yesterday:昨天','week:近 7 天','month:近 30 天','all:全部（半年）','custom:自定义']
+    .map(function(x){ var p=x.split(':');
+      return '<button data-p="'+p[0]+'" class="'+(f.preset===p[0]?'on':'')+'">'+p[1]+'</button>'; }).join('')+
+  '</div>'+
+  '<div class="panel"><div class="filters">'+
+    '<div class="f"><label>起 From</label><input type="date" id="from" value="'+esc(f.from)+'"></div>'+
+    '<div class="f"><label>止 To</label><input type="date" id="to" value="'+esc(f.to)+'"></div>'+
+    '<div class="f"><label>学生姓名</label><input id="q" placeholder="任意几个字" value="'+esc(f.q)+'" style="min-width:190px"></div>'+
+    '<div class="f"><label>年级</label><select id="grade">'+
+      ['','TK','K','1st','2nd','3rd','4th','5th','6th'].map(function(g){
+        return '<option value="'+g+'"'+(f.grade===g?' selected':'')+'>'+(g||'全部')+'</option>'; }).join('')+
+    '</select></div>'+
+    '<div class="f"><label>&nbsp;</label><label style="font-size:14px;color:var(--ink);font-weight:500;display:flex;align-items:center;gap:7px;padding:9px 0">'+
+      '<input type="checkbox" id="late" '+(f.late?'checked':'')+' style="width:17px;height:17px"> 只看迟接</label></div>'+
+    '<button class="b primary" id="search">查询</button><button class="b" id="csv">导出 CSV</button>'+
+  '</div></div><div id="out"></div>'+
+  '<p class="note">迟接判定来自表格 <b>SignOutConfig</b> 页（默认 18:00，可按年级设）。原始数据在 <b>SignOuts</b> 工作表。</p>';
+
+  Array.prototype.forEach.call(document.querySelectorAll('.quick button'), function(b){
+    b.onclick=function(){ preset(b.dataset.p); };
+  });
+  $('search').onclick=function(){
+    filters.from=$('from').value; filters.to=$('to').value; filters.q=$('q').value.trim();
+    filters.grade=$('grade').value; filters.late=$('late').checked; filters.preset='custom';
+    loadRecords();
+  };
+  $('csv').onclick=exportCsv;
+  $('q').onkeydown=function(e){ if(e.key==='Enter') $('search').click(); };
+}
+function preset(p){
+  filters.preset=p;
+  if(p==='today'){ filters.from=todayISO(); filters.to=todayISO(); }
+  else if(p==='yesterday'){ filters.from=shift(-1); filters.to=shift(-1); }
+  else if(p==='week'){ filters.from=shift(-6); filters.to=todayISO(); }
+  else if(p==='month'){ filters.from=shift(-29); filters.to=todayISO(); }
+  else if(p==='all'){ filters.from=''; filters.to=''; }
+  paintRecordsUI();
+  if(p!=='custom') loadRecords();
+}
+function loadRecords(){
+  paintRecordsUI();
+  $('out').innerHTML='<div class="msg">查询中…</div>';
+  api({action:'records', from:filters.from, to:filters.to, q:filters.q,
+       grade:filters.grade, late:filters.late?'1':''},
+    function(r){
+      if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+      rows=(r&&r.rows)||[]; paintRecords();
+    },
+    function(){ $('out').innerHTML='<div class="msg">连不上服务器，请稍后重试</div>'; });
+}
+function paintRecords(){
+  var out=$('out'); if(!out) return;
+  if(!rows.length){ out.innerHTML='<div class="msg">这个范围内没有记录</div>'; return; }
+  var active=rows.filter(function(r){ return r.status!=='undone'; });
+  var late=active.filter(function(r){ return r.late>0; });
+  var days={}; active.forEach(function(r){ days[r.date]=1; });
+  var avg=late.length?Math.round(late.reduce(function(a,r){return a+r.late;},0)/late.length):0;
+  out.innerHTML='<div class="stats">'+
+    '<div class="stat"><b>'+active.length+'</b><span>签出次数</span></div>'+
+    '<div class="stat"><b>'+Object.keys(days).length+'</b><span>覆盖天数</span></div>'+
+    '<div class="stat '+(late.length?'bad':'')+'"><b>'+late.length+'</b><span>迟接次数</span></div>'+
+    '<div class="stat '+(avg?'bad':'')+'"><b>'+(avg?avg+"'":'—')+'</b><span>平均迟到</span></div>'+
+  '</div><div class="panel scroll"><table><thead><tr>'+
+    '<th>日期</th><th>时间</th><th>学生</th><th>年级</th><th>学校</th><th>用的码</th><th>设备</th><th>状态</th>'+
+  '</tr></thead><tbody>'+
+  rows.map(function(r){
+    var cls=r.status==='undone'?'undone':(r.late>0?'late':'');
+    var tag=r.status==='undone'?'<span class="tag off">已撤销</span>'
+          :(r.late>0?'<span class="tag late">迟 '+r.late+' 分钟</span>':'<span class="tag ok">准时</span>');
+    return '<tr class="'+cls+'"><td class="t">'+esc(r.date)+'</td><td class="t">'+esc(to12(r.time))+'</td>'+
+      '<td>'+esc(r.name)+'</td><td>'+esc(r.grade)+'</td><td>'+esc(r.school)+'</td>'+
+      '<td class="t" style="color:var(--muted);font-size:13px">'+esc(fmtCode(r.code))+'</td>'+
+      '<td style="color:var(--muted);font-size:13px">'+esc(r.dev)+'</td><td>'+tag+'</td></tr>';
+  }).join('')+'</tbody></table></div>';
+}
+function exportCsv(){
+  if(!rows.length) return alert('先查询出记录再导出');
+  var head=['Date','Time','Student','Grade','School','MinutesLate','Code','Device','Status'];
+  var body=rows.map(function(r){
+    return [r.date,r.time,r.name,r.grade,r.school,r.late,r.code,r.dev,r.status].map(function(v){
+      v=String(v==null?'':v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(',');
+  });
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['﻿'+head.join(',')+'\n'+body.join('\n')],
+    {type:'text/csv;charset=utf-8'}));
+  a.download='mslc-signouts-'+(filters.from||'all')+'_'+(filters.to||'')+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- 查码 ---------- */
+function fmtCode(c){ c=String(c||''); return c.length>2 ? c.substring(0,2)+'-'+c.substring(2) : c; }
+
+function paintCodesUI(){
+  $('body').innerHTML=
+  '<p class="sub" style="margin-top:-4px">家长忘了码，在这里按孩子姓名查回来。码存在表格的 <b>SignOutCodes</b> 页，改那里就是改这里。</p>'+
+  '<div class="panel"><div class="filters">'+
+    '<div class="f"><label>孩子姓名 或 码</label>'+
+      '<input id="cq" placeholder="输入姓名的任意几个字，或直接输码" style="min-width:280px"></div>'+
+    '<button class="b primary" id="cgo">查询</button>'+
+    '<button class="b" id="csync" style="margin-left:auto">同步新学生（补发码）</button>'+
+    '<button class="b" id="crebuild">按家长电话重算码</button>'+
+  '</div></div><div id="cout"><div class="msg">输入姓名开始查询</div></div>'+
+  '<p class="note"><b>同步新学生</b>：给 Students 表里有、但还没有码的学生补一个码，各自单独成一家；'+
+  '新生若有哥哥姐姐在读，记得去 SignOutCodes 把 Family 改成同一个。<br>'+
+  '<b>按家长电话重算码</b>：在 SignOutCodes 的 <b>Phone4</b> 列填家长电话后四位，'+
+  '<b>爸爸妈妈两个号都填</b>，用逗号或斜杠分开（例：<code>5713, 8842</code>），同一家的每一行填一样的。'+
+  '点这个按钮，每个孩子会对每位家长各有一个码，两个都能用、都会弹出全家。'+
+  '会先给你看变更预览，确认了才写入。Phone4 空着的那些行不动。</p>';
+  $('cgo').onclick=doFindCode;
+  $('cq').onkeydown=function(e){ if(e.key==='Enter') doFindCode(); };
+  $('cq').focus();
+  $('crebuild').onclick=function(){
+    $('cout').innerHTML='<div class="msg">正在算…</div>';
+    api({action:'rebuildcodes', dry:'1'}, function(r){
+      if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+      if(!r || !r.ok) return $('cout').innerHTML='<div class="msg">操作失败</div>';
+      var warn = (r.shared&&r.shared.length) ? '<div class="panel" style="border-color:var(--amberline);'+
+        'background:var(--amberbg);margin-bottom:14px"><p style="margin:0 0 8px"><b>⚠ 有 '+r.shared.length+
+        ' 个电话尾号被不止一家用了</b> —— 这不影响使用（字母不同就分得开，真撞了系统会自动延长到三个字母），'+
+        '但也可能是抄错了一位，扫一眼确认下：</p>'+
+        r.shared.map(function(sh){ return '<div style="margin-top:6px"><b class="t">'+esc(sh.tail)+'</b>：'+
+          sh.families.map(function(f){ return esc(f.children.join(' & '))+'（'+esc(f.family)+'）'; }).join('　vs　')+
+          '</div>'; }).join('')+'</div>' : '';
+      if(!r.count) return $('cout').innerHTML= warn + '<div class="msg">没有需要改的码。'+
+        '（还没在 SignOutCodes 的 Phone4 列填电话尾号？填了再点一次）</div>';
+      $('cout').innerHTML= warn + '<div class="panel"><p style="margin:0 0 12px"><b>会改动 '+r.count+' 个码</b>'+
+        '，下面是预览，还没写进表格：</p><div class="scroll"><table><thead><tr>'+
+        '<th>学生</th><th>现在</th><th>改成（每位家长一个）</th><th>家庭</th></tr></thead><tbody>'+
+        r.changes.map(function(c){ return '<tr><td>'+esc(c.name)+'</td>'+
+          '<td class="t" style="color:var(--muted)">'+esc(fmtCode(c.from))+'</td>'+
+          '<td class="t"><b>'+esc(fmtCode(c.to))+'</b>'+
+            ((c.alt&&c.alt.length)?'<br>'+c.alt.map(function(a){
+              return '<b>'+esc(fmtCode(a))+'</b>'; }).join('<br>'):'')+'</td>'+
+          '<td style="color:var(--muted);font-size:13px">'+esc(c.family)+'</td></tr>'; }).join('')+
+        '</tbody></table></div>'+
+        '<button class="b primary" id="doit" style="margin-top:14px">确认写入表格</button>'+
+        '<span class="note" style="margin-left:12px">写入后旧码立刻失效，记得重新通知这些家长</span></div>';
+      $('doit').onclick=function(){
+        if(!confirm('确认把这 '+r.count+' 个码改掉？旧码马上就不能用了。')) return;
+        $('cout').innerHTML='<div class="msg">写入中…</div>';
+        api({action:'rebuildcodes'}, function(r2){
+          $('cout').innerHTML = (r2&&r2.ok)
+            ? '<div class="msg">已写入 '+r2.count+' 个码。到 SignOutCodes 页可以核对。</div>'
+            : '<div class="msg">写入失败</div>';
+        }, function(){ $('cout').innerHTML='<div class="msg">连不上服务器</div>'; });
+      };
+    }, function(){ $('cout').innerHTML='<div class="msg">连不上服务器</div>'; });
+  };
+  $('csync').onclick=function(){
+    if(!confirm('给还没有码的在读学生补发码？已有的码不会变。')) return;
+    $('cout').innerHTML='<div class="msg">处理中…</div>';
+    api({action:'synccodes'}, function(r){
+      if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+      if(!r || !r.ok) return $('cout').innerHTML='<div class="msg">操作失败</div>';
+      $('cout').innerHTML = r.added.length
+        ? '<div class="panel"><p style="margin:0 0 10px"><b>补发了 '+r.added.length+' 个码</b>（码表现在共 '+r.total+' 人）</p>'+
+          '<table><thead><tr><th>学生</th><th>新的码</th></tr></thead><tbody>'+
+          r.added.map(function(a){ return '<tr><td>'+esc(a.name)+'</td><td class="t"><b>'+esc(fmtCode(a.code))+'</b></td></tr>'; }).join('')+
+          '</tbody></table></div>'
+        : '<div class="msg">没有需要补码的学生，码表共 '+r.total+' 人</div>';
+    }, function(){ $('cout').innerHTML='<div class="msg">连不上服务器</div>'; });
+  };
+}
+function doFindCode(){
+  var q=$('cq').value.trim();
+  if(!q){ $('cout').innerHTML='<div class="msg">输入姓名开始查询</div>'; return; }
+  $('cout').innerHTML='<div class="msg">查询中…</div>';
+  api({action:'findcode', q:q}, function(r){
+    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    var rows=(r&&r.rows)||[];
+    if(!rows.length){ $('cout').innerHTML='<div class="msg">没找到</div>'; return; }
+    $('cout').innerHTML='<div class="panel scroll"><table><thead><tr>'+
+      '<th>学生</th><th>码</th><th>电话尾号</th><th>年级</th><th>学校</th><th>家庭</th><th>同一家的还有</th>'+
+      '</tr></thead><tbody>'+rows.map(function(x){
+        return '<tr><td>'+esc(x.name)+'</td>'+
+          '<td class="t">'+(x.codes||[x.code]).map(function(c,i){
+             return '<b style="font-size:17px;letter-spacing:1px">'+esc(fmtCode(c))+'</b>'+
+                    '<span style="color:var(--muted);font-size:11.5px;margin-left:5px">'+(i?'家长2':'家长1')+'</span>'; })
+             .join('<br>')+'</td>'+
+          '<td class="t" style="color:var(--muted)">'+esc(x.phone4||'—')+'</td>'+
+          '<td>'+esc(x.grade)+'</td><td>'+esc(x.school)+'</td>'+
+          '<td style="color:var(--muted);font-size:13px">'+esc(x.family)+'</td>'+
+          '<td>'+(x.siblings.length?esc(x.siblings.join('、')):'<span style="color:var(--muted)">—</span>')+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+  }, function(){ $('cout').innerHTML='<div class="msg">连不上服务器</div>'; });
+}
+
+/* ---------- 设备管理 ---------- */
+function paintDevicesUI(){
+  $('body').innerHTML='<p class="sub" style="margin-top:-4px">'+
+    '只有这里批准过的设备能打开家长签出页。别人拿到网址也只会看到一个配对码，读不到任何名单。</p>'+
+    '<div id="devs"><div class="msg">载入中…</div></div>'+
+    '<p class="note"><b>怎么加一台新平板：</b>在平板上打开家长端网址 → 屏幕会显示一个 6 位配对码 → '+
+    '在这里找到同样的码 → 点「长期批准」（门口固定平板）或「只批今天」（临时借用的设备）。'+
+    '平板会在几秒内自动进入名单，不用刷新。</p>';
+}
+function loadDevices(){
+  api({action:'devices'}, function(r){
+    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    devices=(r&&r.devices)||[];
+    // 更新 tab 上的红点
+    var t=document.querySelector('.tabs button[data-t="devices"]');
+    var pend=devices.filter(function(d){return d.status==='pending';}).length;
+    if(t) t.innerHTML='设备管理'+(pend?'<span class="dot">'+pend+'</span>':'');
+    paintDevices();
+  }, function(){ var e=$('devs'); if(e) e.innerHTML='<div class="msg">连不上服务器</div>'; });
+}
+function paintDevices(){
+  var box=$('devs'); if(!box) return;
+  if(!devices.length){ box.innerHTML='<div class="msg">还没有任何设备。在平板上打开家长端网址就会出现在这里。</div>'; return; }
+  var order={pending:0, active:1, expired:2, revoked:3};
+  var list=devices.slice().sort(function(a,b){ return (order[a.status]||9)-(order[b.status]||9); });
+  box.innerHTML=list.map(function(d){
+    var tag = d.status==='active'  ? '<span class="tag ok">已授权'+(d.expires?'（'+esc(d.expires)+' 到期）':'（长期）')+'</span>'
+            : d.status==='pending' ? '<span class="tag pending">等待批准</span>'
+            : d.status==='expired' ? '<span class="tag off">已过期</span>'
+            :                        '<span class="tag off">已停用</span>';
+    var acts = d.status==='active'
+      ? '<button class="b sm" data-a="rename" data-d="'+esc(d.dev)+'">改名</button>'+
+        '<button class="b sm danger" data-a="revoke" data-d="'+esc(d.dev)+'">停用</button>'
+      : '<button class="b sm ok" data-a="perm" data-d="'+esc(d.dev)+'">长期批准</button>'+
+        '<button class="b sm" data-a="today" data-d="'+esc(d.dev)+'">只批今天</button>'+
+        (d.status==='revoked'||d.status==='expired'?'':'<button class="b sm danger" data-a="revoke" data-d="'+esc(d.dev)+'">忽略</button>');
+    return '<div class="dev '+(d.status==='pending'?'pending':'')+'">'+
+      '<div class="code">'+esc(d.code)+'</div>'+
+      '<div class="who"><b>'+esc(d.name||'未命名设备')+'</b>'+
+        '<span>'+tag+' · 登记 '+esc((d.registered||'').substring(0,16))+
+        (d.seen?' · 最近使用 '+esc(d.seen.substring(0,16)):'')+'</span>'+
+        (d.info?'<span style="display:block;margin-top:2px;opacity:.75">'+esc(d.info)+'</span>':'')+
+      '</div><div class="acts">'+acts+'</div></div>';
+  }).join('');
+  Array.prototype.forEach.call(box.querySelectorAll('button[data-a]'), function(b){
+    b.onclick=function(){ act(b.dataset.a, b.dataset.d); };
+  });
+}
+function act(mode, dev){
+  var name='';
+  if(mode==='perm'||mode==='today'){
+    name = prompt('给这台设备起个名字（会显示在签出记录里）', mode==='today'?'临时设备':'门口 iPad');
+    if(name===null) return;
+  } else if(mode==='rename'){
+    var cur=devices.filter(function(d){return d.dev===dev;})[0];
+    name = prompt('改设备名', (cur&&cur.name)||'');
+    if(name===null) return;
+    mode='';
+  } else if(mode==='revoke'){
+    if(!confirm('停用后这台设备立刻无法签出，确定吗？')) return;
+  }
+  api({action:'approve', target:dev, mode:mode, name:name}, function(r){
+    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    loadDevices();
+  }, function(){ alert('操作失败，请重试'); });
+}
+
+/* ---------- 启动 ---------- */
+function boot(){
+  if(!CONFIG.API_URL){
+    $('app').innerHTML='<div class="lock panel"><h1>还没配置 API</h1>'+
+      '<p class="sub">请把 Apps Script 的 /exec 地址填进 office.html 顶部的 CONFIG.API_URL</p></div>';
+    return;
+  }
+  if(!pin) return lock();
+  // 先跟服务器对一下「今天」是几号（按表格时区），再拉数据
+  api({action:'ping'}, function(r){
+    if(r && r.time) SERVER_TODAY = String(r.time).split(' ')[0];
+    boot2();
+  }, boot2);
+}
+function boot2(){
+  api({action:'devices'}, function(r){
+    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    devices=(r&&r.devices)||[];
+    var pend=devices.filter(function(d){return d.status==='pending';}).length;
+    switchTab(pend?'devices':'records');
+  }, function(){ switchTab('records'); });
+}
+boot();
+</script>
+</body>
+</html>
