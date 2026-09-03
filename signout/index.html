@@ -210,7 +210,8 @@ function headerHTML(){
 }
 function footHTML(){
   var n=S.queue.length;
-  return '<div class="foot"><span class="pill">'+esc(S.dev?S.dev.name:'')+
+  /* hello 回的字段叫 device（不是 name）—— 之前这里写错，这个小标签一直是空的 */
+  return '<div class="foot"><span class="pill">'+esc((S.dev&&(S.dev.device||S.dev.name))||'This device')+
     (S.dev&&S.dev.expires?' (expires '+esc(S.dev.expires)+')':'')+'</span>'+
     (n?'<span class="pill warn">'+n+' pending</span>':'')+'</div>';
 }
