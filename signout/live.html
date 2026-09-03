@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="robots" content="noindex,nofollow">
+<title>MSLC 今天谁被接走了</title>
+<style>
+  :root{--bg:#0E1621;--card:#18232F;--card2:#1F2C3A;--ink:#F2F6F9;--muted:#8CA0B3;
+        --line:#2A3947;--green:#31C46B;--amber:#E8A33D;--red:#E2564B}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;
+       font:16px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:16px 16px 40px}
+
+  header{display:flex;align-items:center;gap:12px;padding:6px 2px 14px;border-bottom:1px solid var(--line)}
+  h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.2px}
+  h1 small{display:block;font-size:10.5px;font-weight:600;color:var(--muted);
+           letter-spacing:1.3px;text-transform:uppercase;margin-top:3px}
+  .live{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+  .dot.off{background:var(--muted);animation:none}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+  .stats{display:flex;gap:10px;margin:16px 0}
+  .stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px 14px}
+  .stat b{display:block;font-size:26px;font-weight:650;line-height:1.15;font-variant-numeric:tabular-nums}
+  .stat span{font-size:11.5px;color:var(--muted)}
+  .stat.late b{color:var(--amber)}
+
+  .row{background:var(--card);border:1px solid var(--line);border-radius:13px;
+       padding:14px 16px;margin-bottom:9px;display:flex;align-items:center;gap:14px}
+  .row.fresh{animation:pop .5s cubic-bezier(.2,1.2,.4,1);border-color:var(--green)}
+  .row.late{border-color:rgba(232,163,61,.5)}
+  .row .who{flex:1;min-width:0}
+  .row .who b{display:block;font-size:18px;font-weight:600;letter-spacing:-.2px}
+  .row .who span{font-size:12.5px;color:var(--muted)}
+  .row .tm{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .row.late .tm{color:var(--amber)}
+  .tag{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.4px;
+       padding:2px 7px;border-radius:999px;background:rgba(232,163,61,.16);color:var(--amber);margin-left:7px}
+  @keyframes pop{from{transform:scale(.96);opacity:0}to{transform:none;opacity:1}}
+
+  .msg{color:var(--muted);text-align:center;padding:44px 10px;font-size:14px}
+  .bar{display:flex;gap:8px;margin:14px 0 18px;flex-wrap:wrap}
+  button.b{font:600 13px/1 inherit;padding:10px 14px;border-radius:10px;border:1px solid var(--line);
+           background:var(--card);color:var(--ink);cursor:pointer}
+  button.b.on{background:var(--green);border-color:var(--green);color:#08210F}
+  .lock{max-width:320px;margin:16vh auto;text-align:center;background:var(--card);
+        border:1px solid var(--line);border-radius:18px;padding:28px 22px}
+  .lock input{width:100%;text-align:center;font-size:22px;letter-spacing:6px;padding:13px;
+              border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--ink)}
+  .lock button{width:100%;margin-top:12px;padding:14px}
+  .err{color:var(--red);font-size:13px;height:18px;margin-top:9px}
+  .hint{color:var(--muted);font-size:12px;margin-top:16px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+var CONFIG = { API_URL: 'https://script.google.com/macros/s/AKfycbw1efC1uiCzBlCZs09ohmkWI9hncUWQF892gFrKuhUVj4YT0Vpz1MatEaI-hg_ws8M8YQ/exec' };   // ← 和 index.html / office.html 用同一个 /exec 地址
+var qs = new URLSearchParams(location.search); if (qs.get('api')) CONFIG.API_URL = qs.get('api');
+
+/* 轮询节奏：手机锁屏 / 切走时完全不查，接送时段查得勤一点。
+   Apps Script 每天有执行时长配额，全天每 10 秒查一次会把配额烧掉。 */
+var POLL_BUSY = 15000, POLL_IDLE = 90000;
+var BUSY_FROM = 14, BUSY_TO = 19;      // 下午 2 点到 7 点算接送时段
+
+var pin = '', rows = [], seen = {}, first = true, timer = null, soundOn = true;
+try { pin = localStorage.getItem('mslc_office_pin') || ''; } catch (e) {}
+try { soundOn = localStorage.getItem('mslc_live_sound') !== '0'; } catch (e) {}
+
+var seq = 0;
+function api(params, cb, errCb) {
+  var name = '__lv' + (++seq) + Date.now().toString(36);
+  var url = CONFIG.API_URL + '?callback=' + name;
+  Object.keys(params).forEach(function (k) { url += '&' + k + '=' + encodeURIComponent(params[k]); });
+  url += '&k=' + encodeURIComponent(pin) + '&_=' + Date.now();
+  var s = document.createElement('script'), done = false;
+  var t = setTimeout(function () { if (!done) { done = true; clean(); errCb && errCb(); } }, 20000);
+  function clean() { clearTimeout(t); try { delete window[name]; } catch (e) { window[name] = undefined; } s.remove(); }
+  window[name] = function (r) { if (done) return; done = true; clean(); cb(r); };
+  s.onerror = function () { if (done) return; done = true; clean(); errCb && errCb(); };
+  s.src = url; document.head.appendChild(s);
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function to12(hhmm){ if(!hhmm) return '';
+  var p=String(hhmm).split(':'), h=parseInt(p[0],10), m=p[1]||'00', ap=h>=12?'PM':'AM';
+  h=h%12||12; return h+':'+m+' '+ap; }
+function iso(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function $(id){ return document.getElementById(id); }
+
+/* ---------- 提示音（不用音频文件，直接合成一声） ---------- */
+var actx = null;
+function ding(){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    [880, 1320].forEach(function(f, i){
+      var o=actx.createOscillator(), g=actx.createGain();
+      o.type='sine'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001, actx.currentTime + i*0.12);
+      g.gain.exponentialRampToValueAtTime(0.25, actx.currentTime + i*0.12 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + i*0.12 + 0.3);
+      o.connect(g); g.connect(actx.destination);
+      o.start(actx.currentTime + i*0.12); o.stop(actx.currentTime + i*0.12 + 0.32);
+    });
+  }catch(e){}
+}
+function notify(title, body){
+  try{
+    if(!('Notification' in window) || Notification.permission!=='granted') return;
+    new Notification(title, { body: body, tag: 'mslc-'+Date.now() });
+  }catch(e){}
+}
+
+/* ---------- 登录 ---------- */
+function lock(err){
+  $('app').innerHTML = '<div class="lock"><h1 style="margin-bottom:6px">今天谁被接走了</h1>'+
+    '<p style="color:var(--muted);font-size:13px;margin:0 0 18px">输办公室密码</p>'+
+    '<input id="p" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">'+
+    '<button class="b on" id="go">进入</button><div class="err">'+(err?esc(err):'')+'</div></div>';
+  var i = $('p');
+  function go(){ pin=i.value.trim(); try{localStorage.setItem('mslc_office_pin',pin);}catch(e){} boot(); }
+  $('go').onclick = go;
+  i.onkeydown = function(e){ if(e.key==='Enter') go(); };
+  i.focus();
+}
+
+/* ---------- 主画面 ---------- */
+function render(connected){
+  var late = rows.filter(function(r){ return r.late>0; }).length;
+  var canNotify = ('Notification' in window) && Notification.permission==='default';
+  $('app').innerHTML =
+    '<header><h1>今天谁被接走了<small>MSLC Pickup · Live</small></h1>'+
+      '<span class="live"><span class="dot'+(connected?'':' off')+'"></span>'+
+      (connected?'实时':'连接中')+'</span></header>'+
+    '<div class="stats">'+
+      '<div class="stat"><b>'+rows.length+'</b><span>今天已接走</span></div>'+
+      '<div class="stat'+(late?' late':'')+'"><b>'+late+'</b><span>迟接</span></div>'+
+    '</div>'+
+    '<div class="bar">'+
+      '<button class="b'+(soundOn?' on':'')+'" id="snd">'+(soundOn?'🔔 提示音开':'🔕 提示音关')+'</button>'+
+      (canNotify?'<button class="b" id="perm">开启手机通知</button>':'')+
+      '<button class="b" id="ref">刷新</button>'+
+    '</div>'+
+    (rows.length ? rows.map(function(r){
+        return '<div class="row'+(r.fresh?' fresh':'')+(r.late>0?' late':'')+'">'+
+          '<div class="who"><b>'+esc(r.name)+(r.late>0?'<span class="tag">迟 '+r.late+' 分钟</span>':'')+'</b>'+
+          '<span>'+esc(r.grade)+(r.school?' · '+esc(r.school):'')+'</span></div>'+
+          '<div class="tm">'+esc(to12(r.time))+'</div></div>';
+      }).join('')
+      : '<div class="msg">今天还没有人被接走<br>有人签出会自动出现在这里</div>')+
+    '<div class="hint">这一页只在你打开着的时候查询；手机锁屏或切到别的 app 就自动停，'+
+      '不会白白消耗额度。<br>加到主屏幕可以当 app 用。</div>';
+
+  $('snd').onclick = function(){
+    soundOn = !soundOn;
+    try{ localStorage.setItem('mslc_live_sound', soundOn?'1':'0'); }catch(e){}
+    if(soundOn) ding();
+    render(connected);
+  };
+  if($('ref')) $('ref').onclick = function(){ poll(); };
+  if($('perm')) $('perm').onclick = function(){
+    try{ Notification.requestPermission().then(function(){ render(connected); }); }catch(e){}
+  };
+}
+
+/* ---------- 轮询 ---------- */
+function poll(){
+  var today = iso(new Date());
+  api({action:'records', from:today, to:today}, function(r){
+    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    if(!r || !r.rows) return render(false);
+    var fresh = [];
+    var list = r.rows.filter(function(x){ return x.status!=='undone'; });
+    list.forEach(function(x){
+      x.fresh = false;
+      if(!seen[x.rid]){ seen[x.rid]=true; if(!first){ x.fresh=true; fresh.push(x); } }
+    });
+    rows = list;
+    if(fresh.length){
+      ding();
+      var names = fresh.map(function(f){ return f.name.replace(/[（(].*/,'').trim(); });
+      notify('已接走 · ' + to12(fresh[0].time), names.join('、'));
+    }
+    first = false;
+    render(true);
+    schedule();
+  }, function(){ render(false); schedule(); });
+}
+function schedule(){
+  clearTimeout(timer);
+  if(document.hidden) return;                 // 锁屏 / 切走就完全不查
+  var h = new Date().getHours();
+  var busy = (h >= BUSY_FROM && h < BUSY_TO);
+  timer = setTimeout(poll, busy ? POLL_BUSY : POLL_IDLE);
+}
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden) clearTimeout(timer);
+  else poll();                                // 回到前台立刻刷一次
+});
+
+function boot(){
+  if(!CONFIG.API_URL){
+    $('app').innerHTML='<div class="lock"><h1>还没配置 API</h1>'+
+      '<p style="color:var(--muted);font-size:13px">把 /exec 地址填进 live.html 顶部的 CONFIG.API_URL</p></div>';
+    return;
+  }
+  if(!pin) return lock();
+  first = true; seen = {};
+  render(false);
+  poll();
+}
+boot();
+</script>
+</body>
+</html>
