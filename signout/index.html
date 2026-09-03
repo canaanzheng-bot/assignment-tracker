@@ -139,7 +139,11 @@ var CONFIG = {
   DIGITS: 4,              // 后四位数字
   IDLE_SECONDS: 45,       // 输了一半没人管，多少秒后清空
   SUCCESS_SECONDS: 5,     // 成功页停留秒数（期间可撤销）
-  PAIR_POLL_SECONDS: 5
+  PAIR_POLL_SECONDS: 5,
+  // 接送时段里让服务器一直醒着 —— 冷启动一次要十几秒，全落在家长头上
+  WARM_EVERY_SECONDS: 90,
+  WARM_FROM_HOUR: 14,     // 下午 2 点
+  WARM_TO_HOUR: 19.5      // 到 7 点半
 };
 /* =============================================== */
 
@@ -266,6 +270,17 @@ function warmUp(){
   lastWarm = now;
   api({action:'warm'}, function(){}, function(){});
 }
+
+/* 光靠「按第一个键才叫醒」还不够：两位家长之间隔上几分钟，服务器又睡了，
+   下一位还是要等十几秒。所以接送时段里每 90 秒主动敲一下，让它一直醒着。
+   代价很小 —— 一天两百来次、每次零点几秒，配额上完全不算什么。 */
+function keepWarm(){
+  if(S.blocked || !S.dev || S.busy) return;
+  var d = new Date(), h = d.getHours() + d.getMinutes()/60;
+  if(h < CONFIG.WARM_FROM_HOUR || h > CONFIG.WARM_TO_HOUR) return;
+  warmUp();
+}
+setInterval(keepWarm, CONFIG.WARM_EVERY_SECONDS*1000);
 
 function key(k){
   if(S.busy) return;
