@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -175,7 +175,7 @@ function api(params, cb, errCb){
   Object.keys(params).forEach(function(k){ url+='&'+k+'='+encodeURIComponent(params[k]); });
   url+='&dev='+encodeURIComponent(deviceId())+'&_='+Date.now();
   var s=document.createElement('script'), done=false;
-  var t=setTimeout(function(){ if(!done){done=true;clean();errCb&&errCb('timeout');} },12000);
+  var t=setTimeout(function(){ if(!done){done=true;clean();errCb&&errCb('timeout');} },30000);
   function clean(){ clearTimeout(t); try{delete window[name];}catch(e){window[name]=undefined;} s.remove(); }
   window[name]=function(r){ if(done)return; done=true; clean(); cb(r); };
   s.onerror=function(){ if(done)return; done=true; clean(); errCb&&errCb('network'); };
@@ -211,12 +211,11 @@ function headerHTML(){
 function footHTML(){
   var n=S.queue.length;
   return '<div class="foot"><span class="pill">'+esc(S.dev?S.dev.name:'')+
-    (S.dev&&S.dev.expires?'（'+esc(S.dev.expires)+' 到期）':'')+'</span>'+
-    (n?'<span class="pill warn">'+n+' 条待同步</span>':'')+
-    '<span style="margin-left:auto">记录自动存档，保留半年</span></div>';
+    (S.dev&&S.dev.expires?' (expires '+esc(S.dev.expires)+')':'')+'</span>'+
+    (n?'<span class="pill warn">'+n+' pending</span>':'')+'</div>';
 }
 function renderLoading(){
-  app.innerHTML = headerHTML()+'<p class="lead">正在连接…<small>Connecting</small></p>';
+  app.innerHTML = headerHTML()+'<p class="lead">Connecting…</p>';
 }
 function startClock(){
   clearInterval(clockTimer);
@@ -236,17 +235,17 @@ function renderEntry(){
   if(lettersMode){
     var A='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
     pad='<div class="pad letters">'+A.map(function(c){ return '<button data-k="'+c+'">'+c+'</button>'; }).join('')+
-        '<button class="del wide" data-k="DEL">⌫ 删除</button></div>';
+        '<button class="del wide" data-k="DEL">⌫ Delete</button></div>';
   } else {
     var keys=['1','2','3','4','5','6','7','8','9'];
     pad='<div class="pad digits">'+keys.map(function(k){ return '<button data-k="'+k+'">'+k+'</button>'; }).join('')+
         '<button class="del" data-k="DEL">⌫</button><button data-k="0">0</button>'+
-        '<button class="del" data-k="CLR">清空</button></div>';
+        '<button class="del" data-k="CLR">Clear</button></div>';
   }
   app.innerHTML = headerHTML()+
-    '<p class="lead">请输入孩子的接送码<small>Enter your child’s pickup code</small></p>'+
+    '<p class="lead">Enter your pickup code<small>Two letters, then four digits</small></p>'+
     '<div class="boxes'+(S.bad?' shake':'')+'" id="boxes">'+boxes+'</div>'+
-    '<div class="hint'+(S.bad?' bad':'')+'">'+esc(S.hint || (lettersMode?'先输两个字母（孩子姓名首字母）':'再输四位数字'))+'</div>'+
+    '<div class="hint'+(S.bad?' bad':'')+'">'+esc(S.hint || (lettersMode?'Your child’s initials':'Last 4 digits of your phone number'))+'</div>'+
     pad + footHTML();
   Array.prototype.forEach.call(app.querySelectorAll('.pad button'), function(b){
     b.onclick=function(){ key(b.dataset.k); };
@@ -255,9 +254,22 @@ function renderEntry(){
   startClock();
 }
 
+/* 家长按下第一个键就悄悄叫醒服务器。
+   Apps Script 闲着会睡过去，门口平板两位家长之间常常隔几分钟 —— 不预热的话，
+   第一位家长按完六位，服务器才刚开始爬起来，那几秒全让他等着。
+   现在他按键的那 5～10 秒里，实例已经醒了、码表和今天的签出也进缓存了。 */
+var lastWarm = 0;
+function warmUp(){
+  var now = Date.now();
+  if(now - lastWarm < 45000) return;      // 45 秒内热过就不用再叫
+  lastWarm = now;
+  api({action:'warm'}, function(){}, function(){});
+}
+
 function key(k){
   if(S.busy) return;
   S.hint='';
+  if(!S.buf && k!=='DEL' && k!=='CLR') warmUp();
   if(k==='DEL'){ S.buf=S.buf.slice(0,-1); return render(); }
   if(k==='CLR'){ S.buf=''; return render(); }
   if(S.buf.length>=LEN) return;
@@ -267,25 +279,25 @@ function key(k){
 }
 
 function submit(){
-  S.busy=true; S.hint='查询中…'; render();
+  S.busy=true; S.hint='Checking…'; render();
   var code=S.buf;
   api({action:'lookup', code:code}, function(r){
     S.busy=false;
     if(r && r.ok){ S.buf=''; S.hint=''; render(); familyCard(code, r); }
     else if(r && r.error==='NOT_FOUND'){
       S.buf=''; S.bad=true;
-      S.hint='没找到这个码，请检查后重输' + (r.left<=2 ? '（还可以试 '+r.left+' 次）' : '');
+      S.hint='Code not found — please check and try again' + (r.left<=2 ? ' ('+r.left+' tries left)' : '');
       render();
     }
     else if(r && r.error==='TOO_MANY_TRIES'){
-      S.buf=''; S.bad=true; S.hint='错误次数太多，请等 '+r.wait+' 秒，或找办公室帮忙'; render();
+      S.buf=''; S.bad=true; S.hint='Too many attempts — wait '+r.wait+' seconds or ask the office'; render();
     }
     else if(r && r.error==='DEVICE_NOT_AUTHORIZED'){ S.blocked=r.status||'revoked'; startPairing(); }
-    else if(r && r.error==='OUTSIDE_HOURS'){ S.buf=''; S.bad=true; S.hint='现在不在签出时段（'+esc(r.hours||'')+'）'; render(); }
-    else { S.buf=''; S.bad=true; S.hint='出错了，请再试一次'; render(); }
+    else if(r && r.error==='OUTSIDE_HOURS'){ S.buf=''; S.bad=true; S.hint='Sign-out is closed right now ('+esc(r.hours||'')+')'; render(); }
+    else { S.buf=''; S.bad=true; S.hint='Something went wrong — please try again'; render(); }
   }, function(){
     S.busy=false; S.buf=''; S.bad=true;
-    S.hint='网络连不上，请找办公室手工登记'; render();
+    S.hint='No connection — please see the office'; render();
   });
 }
 
@@ -303,19 +315,19 @@ function familyCard(code, data){
     var n=Object.keys(pick).filter(function(k){return pick[k];}).length;
     var multi = data.children.length>1;
     el.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+
-      '<div class="eyebrow">确认接走 · Confirm pickup</div>'+
-      '<h3>'+(multi?'今天要接走谁？<span style="font-weight:400;color:var(--muted);font-size:14px;display:block;margin-top:4px">兄弟姐妹已经一起列出来了，点一下可以取消选中</span>':'确认接走')+'</h3>'+
+      '<div class="eyebrow">Confirm pickup</div>'+
+      '<h3>'+(multi?'Who are you picking up?<span style="font-weight:400;color:var(--muted);font-size:14px;display:block;margin-top:4px">Siblings are listed together — tap one to unselect it</span>':'Confirm pickup')+'</h3>'+
       data.children.map(function(c){
         if(c.out) return '<div class="kid done"><div class="tickbox">✓</div><div class="info">'+
-          '<b>'+esc(c.name)+(c.entered?'<em class="mine">你输入的码</em>':'')+'</b>'+
-          '<span>已于 '+esc(to12(c.out))+' 接走</span></div></div>';
+          '<b>'+esc(c.name)+(c.entered?'<em class="mine">Your code</em>':'')+'</b>'+
+          '<span>Picked up at '+esc(to12(c.out))+'</span></div></div>';
         return '<button class="kid'+(pick[c.id]?' on':'')+'" data-id="'+esc(c.id)+'">'+
           '<div class="tickbox">'+(pick[c.id]?'✓':'')+'</div><div class="info"><b>'+esc(c.name)+
-          (c.entered?'<em class="mine">你输入的码</em>':'')+'</b>'+
+          (c.entered?'<em class="mine">Your code</em>':'')+'</b>'+
           '<span>'+esc(c.grade)+(c.cn?' · '+esc(c.cn):'')+'</span></div></button>';
       }).join('')+
-      '<button class="btn go" id="ok"'+(n?'':' disabled')+'>✓ 确认接走'+(n>1?'（'+n+' 个孩子）':'')+'</button>'+
-      '<button class="btn cancel" id="no">取消 Cancel</button></div>';
+      '<button class="btn go" id="ok"'+(n?'':' disabled')+'>✓ Confirm pickup'+(n>1?' ('+n+' children)':'')+'</button>'+
+      '<button class="btn cancel" id="no">Cancel</button></div>';
     Array.prototype.forEach.call(el.querySelectorAll('.kid[data-id]'), function(b){
       b.onclick=function(){ var id=b.dataset.id; pick[id]=!pick[id]; draw(); };
     });
@@ -367,8 +379,8 @@ function successScreen(names, when, undoFn){
   el.className='done-screen';
   el.innerHTML='<div class="tick">✓</div><div class="n">'+names.map(esc).join('<br>')+'</div>'+
     '<div class="tm">'+fmtTime(when)+'</div>'+
-    '<div class="sub">已记录接走时间 · Pickup time recorded</div>'+
-    '<button class="undo" id="undo">点错了？撤销 Undo</button>';
+    '<div class="sub">Pickup time recorded</div>'+
+    '<button class="undo" id="undo">Undo</button>';
   document.body.appendChild(el);
   var t=setTimeout(finish, CONFIG.SUCCESS_SECONDS*1000);
   function finish(){ clearTimeout(t); el.remove(); S.buf=''; S.hint=''; render(); }
@@ -378,8 +390,8 @@ function successScreen(names, when, undoFn){
 /* ---------- 设备配对 ---------- */
 var PAIR_MSG = {
   pending:'', unknown:'',
-  revoked:'这台设备已被办公室停用。需要重新启用请找办公室。',
-  expired:'这台设备的临时授权已过期。今天还要用的话，请办公室再批准一次。'
+  revoked:'This device has been turned off by the office. Please ask the office to re-enable it.',
+  expired:'This device’s temporary approval has expired. Ask the office to approve it again for today.'
 };
 function renderPair(){
   clearInterval(clockTimer);
@@ -387,13 +399,13 @@ function renderPair(){
   var note = PAIR_MSG[S.blocked] || '';
   app.innerHTML='<div class="pair">'+
     (note?'<div class="blocked">'+esc(note)+'</div>':'')+
-    '<h1>这台设备还没有授权</h1>'+
-    '<p>只有办公室批准过的设备可以用来签出。</p>'+
+    '<h1>This device isn’t approved yet</h1>'+
+    '<p>Only devices approved by the office can be used for sign-out.</p>'+
     '<div class="code">'+esc(code)+'</div>'+
-    '<div class="steps"><b>1.</b> 把上面这个码告诉办公室<br>'+
-    '<b>2.</b> 办公室在「后台 → 设备管理」里找到它<br>'+
-    '<b>3.</b> 点「批准」，这一页会自动进入</div>'+
-    '<div class="status"><span class="spin"></span>等待批准中…每 '+CONFIG.PAIR_POLL_SECONDS+' 秒自动检查</div></div>';
+    '<div class="steps"><b>1.</b> Give the code above to the office<br>'+
+    '<b>2.</b> The office finds it under Devices in the admin page<br>'+
+    '<b>3.</b> They tap Approve — this screen continues on its own</div>'+
+    '<div class="status"><span class="spin"></span>Waiting for approval — checking every '+CONFIG.PAIR_POLL_SECONDS+'s</div></div>';
 }
 function enrollOnce(){
   api({action:'enroll', info:navigator.platform+' / '+screen.width+'x'+screen.height}, function(r){
@@ -417,26 +429,35 @@ function startPairing(){
 }
 
 /* ---------- 启动 ---------- */
+/* Apps Script 闲一会儿就睡着，被叫醒要十几秒。
+   之前这里 12 秒就判定「连不上服务器」，同事第一次点开试用链接看到的就是这一屏，
+   其实再等几秒它自己就好了 —— 所以前几次重试说「正在唤醒」，别说「连不上」。 */
+var bootTries = 0;
 function hello(){
   api({action:'hello'}, function(r){
-    if(r && r.ok){ S.blocked=''; S.dev=r; lsSet('mslc_dev_ok', r); render(); }
+    if(r && r.ok){ bootTries=0; S.blocked=''; S.dev=r; lsSet('mslc_dev_ok', r); render(); }
     else if(r && r.error==='DEVICE_NOT_AUTHORIZED'){
       lsSet('mslc_dev_ok', null); S.dev=null; S.blocked=r.status||'pending'; startPairing(); }
     else if(r && r.error==='OUTSIDE_HOURS'){
-      app.innerHTML=headerHTML()+'<p class="lead">现在不在签出时段<small>开放时间：'+esc(r.hours||'')+'</small></p>';
+      app.innerHTML=headerHTML()+'<p class="lead">Sign-out is closed<small>Open '+esc(r.hours||'')+'</small></p>';
     }
-    else { app.innerHTML=headerHTML()+'<p class="lead">载入失败<small>'+esc((r&&r.error)||'未知错误')+'</small></p>'; }
+    else { app.innerHTML=headerHTML()+'<p class="lead">Couldn’t load<small>'+esc((r&&r.error)||'Unknown error')+'</small></p>'; }
   }, function(){
     if(S.dev){ setTimeout(hello, 8000); return; }        // 已经在用了就别打断家长
-    app.innerHTML=headerHTML()+'<p class="lead">连不上服务器<small>8 秒后自动重试</small></p>';
-    setTimeout(hello, 8000);
+    bootTries++;
+    var waking = bootTries <= 3;
+    app.innerHTML = headerHTML() +
+      (waking
+        ? '<p class="lead">Waking up…<small>The first load of the day can take a few seconds</small></p>'
+        : '<p class="lead">Can’t reach the server<small>Still trying — check the Wi-Fi if this stays up</small></p>');
+    setTimeout(hello, waking ? 3000 : 8000);
   });
 }
 setInterval(function(){ if(!S.blocked && S.dev && !S.buf && !S.busy) hello(); }, 300000);
 
 if(!CONFIG.API_URL){
-  app.innerHTML='<div class="pair"><h1>还没配置 API</h1>'+
-    '<p>请把 Apps Script 的 /exec 地址填进 index.html 顶部的 <b>CONFIG.API_URL</b>。</p></div>';
+  app.innerHTML='<div class="pair"><h1>API not configured</h1>'+
+    '<p>Paste the Apps Script /exec URL into <b>CONFIG.API_URL</b> at the top of index.html.</p></div>';
 } else {
   /* 开机提速：这台平板上次已经通过授权的话，直接把键盘画出来，
      hello 放到后台去核实。原本要空等一次 Apps Script 往返（1～3 秒）才有画面。 */

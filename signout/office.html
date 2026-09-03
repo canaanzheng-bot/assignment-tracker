@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -89,6 +89,17 @@ var pin='', rows=[], devices=[], tab='records', devTimer=null;
 var filters={ preset:'today', from:'', to:'', q:'', grade:'', late:false };
 try{ pin=localStorage.getItem('mslc_office_pin')||''; }catch(e){}
 
+/* 网址里带 ?k=密码 时直接进，不用再输（和 live.html 一样）。
+   ⚠ 这种网址里带着办公室密码，只放自己的设备，别转发。 */
+(function(){
+  var k=(qs.get('k')||'').trim();
+  if(!k) return;
+  pin=k;
+  try{ localStorage.setItem('mslc_office_pin', pin); }catch(e){}
+  try{ qs['delete']('k'); var rest=qs.toString();
+       history.replaceState(null,'', location.pathname+(rest?'?'+rest:'')+location.hash); }catch(e){}
+})();
+
 var seq=0;
 function api(params, cb, errCb){
   var name='__oc'+(++seq)+Date.now().toString(36);
@@ -96,7 +107,7 @@ function api(params, cb, errCb){
   Object.keys(params).forEach(function(k){ url+='&'+k+'='+encodeURIComponent(params[k]); });
   url+='&k='+encodeURIComponent(pin)+'&_='+Date.now();
   var s=document.createElement('script'), done=false;
-  var t=setTimeout(function(){ if(!done){done=true;clean();errCb&&errCb();} },20000);
+  var t=setTimeout(function(){ if(!done){done=true;clean();errCb&&errCb();} },30000);
   function clean(){ clearTimeout(t); try{delete window[name];}catch(e){window[name]=undefined;} s.remove(); }
   window[name]=function(r){ if(done)return; done=true; clean(); cb(r); };
   s.onerror=function(){ if(done)return; done=true; clean(); errCb&&errCb(); };
@@ -104,6 +115,10 @@ function api(params, cb, errCb){
 }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+/* 表里存的是花名册全名「Bolin Yuan(袁伯林)」，页面上只显示英文那半截；
+   导出的 CSV 仍然写全名，存档要对得上花名册。 */
+function enName(s){ return String(s==null?'':s)
+  .replace(/[（(][^）)]*[）)]?/g,' ').replace(/[*＊]/g,' ').replace(/\s+/g,' ').trim(); }
 function iso(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 /* 「今天」以表格所在时区（America/Los_Angeles）为准，不看这台电脑的时区 ——
    否则在外地/时区设错的电脑上打开，「今天」会差一天，查出来是空的。
@@ -124,10 +139,10 @@ function $(id){ return document.getElementById(id); }
 
 /* ---------- 登录 ---------- */
 function lock(err){
-  $('app').innerHTML='<div class="lock panel"><h1>办公室后台</h1>'+
-    '<p class="sub">签出记录 & 设备管理</p>'+
+  $('app').innerHTML='<div class="lock panel"><h1>Office Admin</h1>'+
+    '<p class="sub">Sign-out records &amp; devices</p>'+
     '<input id="p" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">'+
-    '<button class="b primary" id="go">进入</button><div class="err">'+(err?esc(err):'')+'</div></div>';
+    '<button class="b primary" id="go">Enter</button><div class="err">'+(err?esc(err):'')+'</div></div>';
   var i=$('p');
   function go(){ pin=i.value.trim(); try{localStorage.setItem('mslc_office_pin',pin);}catch(e){} boot(); }
   $('go').onclick=go; i.onkeydown=function(e){ if(e.key==='Enter') go(); }; i.focus();
@@ -136,11 +151,11 @@ function lock(err){
 /* ---------- 外壳 ---------- */
 function chrome(){
   var pend = devices.filter(function(d){ return d.status==='pending'; }).length;
-  return '<h1>放学签出后台</h1><p class="sub">Pickup sign-out · 记录保留半年，每月自动清理更早的数据</p>'+
+  return '<h1>Pickup Sign-Out</h1><p class="sub">Office admin</p>'+
     '<div class="tabs">'+
-      '<button data-t="records" class="'+(tab==='records'?'on':'')+'">签出记录</button>'+
-      '<button data-t="codes" class="'+(tab==='codes'?'on':'')+'">查码</button>'+
-      '<button data-t="devices" class="'+(tab==='devices'?'on':'')+'">设备管理'+
+      '<button data-t="records" class="'+(tab==='records'?'on':'')+'">Records</button>'+
+      '<button data-t="codes" class="'+(tab==='codes'?'on':'')+'">Find a code</button>'+
+      '<button data-t="devices" class="'+(tab==='devices'?'on':'')+'">Devices'+
         (pend?'<span class="dot">'+pend+'</span>':'')+'</button>'+
     '</div><div id="body"></div>';
 }
@@ -166,23 +181,23 @@ function paintRecordsUI(){
   var f=filters;
   $('body').innerHTML =
   '<div class="quick">'+
-    ['today:今天','yesterday:昨天','week:近 7 天','month:近 30 天','all:全部（半年）','custom:自定义']
+    ['today:Today','yesterday:Yesterday','week:Last 7 days','month:Last 30 days','all:All','custom:Custom']
     .map(function(x){ var p=x.split(':');
       return '<button data-p="'+p[0]+'" class="'+(f.preset===p[0]?'on':'')+'">'+p[1]+'</button>'; }).join('')+
   '</div>'+
   '<div class="panel"><div class="filters">'+
-    '<div class="f"><label>起 From</label><input type="date" id="from" value="'+esc(f.from)+'"></div>'+
-    '<div class="f"><label>止 To</label><input type="date" id="to" value="'+esc(f.to)+'"></div>'+
-    '<div class="f"><label>学生姓名</label><input id="q" placeholder="任意几个字" value="'+esc(f.q)+'" style="min-width:190px"></div>'+
-    '<div class="f"><label>年级</label><select id="grade">'+
+    '<div class="f"><label>From</label><input type="date" id="from" value="'+esc(f.from)+'"></div>'+
+    '<div class="f"><label>To</label><input type="date" id="to" value="'+esc(f.to)+'"></div>'+
+    '<div class="f"><label>Student name</label><input id="q" placeholder="any part of the name" value="'+esc(f.q)+'" style="min-width:190px"></div>'+
+    '<div class="f"><label>Grade</label><select id="grade">'+
       ['','TK','K','1st','2nd','3rd','4th','5th','6th'].map(function(g){
-        return '<option value="'+g+'"'+(f.grade===g?' selected':'')+'>'+(g||'全部')+'</option>'; }).join('')+
+        return '<option value="'+g+'"'+(f.grade===g?' selected':'')+'>'+(g||'All')+'</option>'; }).join('')+
     '</select></div>'+
     '<div class="f"><label>&nbsp;</label><label style="font-size:14px;color:var(--ink);font-weight:500;display:flex;align-items:center;gap:7px;padding:9px 0">'+
-      '<input type="checkbox" id="late" '+(f.late?'checked':'')+' style="width:17px;height:17px"> 只看迟接</label></div>'+
-    '<button class="b primary" id="search">查询</button><button class="b" id="csv">导出 CSV</button>'+
+      '<input type="checkbox" id="late" '+(f.late?'checked':'')+' style="width:17px;height:17px"> Late only</label></div>'+
+    '<button class="b primary" id="search">Search</button><button class="b" id="csv">Export CSV</button>'+
   '</div></div><div id="out"></div>'+
-  '<p class="note">迟接判定来自表格 <b>SignOutConfig</b> 页（默认 18:00，可按年级设）。原始数据在 <b>SignOuts</b> 工作表。</p>';
+  '<p class="note">Late cut-off comes from the <b>SignOutConfig</b> tab (18:00 by default, can be set per grade). Raw data lives in the <b>SignOuts</b> tab.</p>';
 
   Array.prototype.forEach.call(document.querySelectorAll('.quick button'), function(b){
     b.onclick=function(){ preset(b.dataset.p); };
@@ -207,42 +222,42 @@ function preset(p){
 }
 function loadRecords(){
   paintRecordsUI();
-  $('out').innerHTML='<div class="msg">查询中…</div>';
+  $('out').innerHTML='<div class="msg">Searching…</div>';
   api({action:'records', from:filters.from, to:filters.to, q:filters.q,
        grade:filters.grade, late:filters.late?'1':''},
     function(r){
-      if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+      if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
       rows=(r&&r.rows)||[]; paintRecords();
     },
-    function(){ $('out').innerHTML='<div class="msg">连不上服务器，请稍后重试</div>'; });
+    function(){ $('out').innerHTML='<div class="msg">Can’t reach the server — try again in a moment</div>'; });
 }
 function paintRecords(){
   var out=$('out'); if(!out) return;
-  if(!rows.length){ out.innerHTML='<div class="msg">这个范围内没有记录</div>'; return; }
+  if(!rows.length){ out.innerHTML='<div class="msg">No records in this range</div>'; return; }
   var active=rows.filter(function(r){ return r.status!=='undone'; });
   var late=active.filter(function(r){ return r.late>0; });
   var days={}; active.forEach(function(r){ days[r.date]=1; });
   var avg=late.length?Math.round(late.reduce(function(a,r){return a+r.late;},0)/late.length):0;
   out.innerHTML='<div class="stats">'+
-    '<div class="stat"><b>'+active.length+'</b><span>签出次数</span></div>'+
-    '<div class="stat"><b>'+Object.keys(days).length+'</b><span>覆盖天数</span></div>'+
-    '<div class="stat '+(late.length?'bad':'')+'"><b>'+late.length+'</b><span>迟接次数</span></div>'+
-    '<div class="stat '+(avg?'bad':'')+'"><b>'+(avg?avg+"'":'—')+'</b><span>平均迟到</span></div>'+
+    '<div class="stat"><b>'+active.length+'</b><span>Pickups</span></div>'+
+    '<div class="stat"><b>'+Object.keys(days).length+'</b><span>Days covered</span></div>'+
+    '<div class="stat '+(late.length?'bad':'')+'"><b>'+late.length+'</b><span>Late pickups</span></div>'+
+    '<div class="stat '+(avg?'bad':'')+'"><b>'+(avg?avg+"'":'—')+'</b><span>Avg. minutes late</span></div>'+
   '</div><div class="panel scroll"><table><thead><tr>'+
-    '<th>日期</th><th>时间</th><th>学生</th><th>年级</th><th>学校</th><th>用的码</th><th>设备</th><th>状态</th>'+
+    '<th>Date</th><th>Time</th><th>Student</th><th>Grade</th><th>School</th><th>Code used</th><th>Device</th><th>Status</th>'+
   '</tr></thead><tbody>'+
   rows.map(function(r){
     var cls=r.status==='undone'?'undone':(r.late>0?'late':'');
-    var tag=r.status==='undone'?'<span class="tag off">已撤销</span>'
-          :(r.late>0?'<span class="tag late">迟 '+r.late+' 分钟</span>':'<span class="tag ok">准时</span>');
+    var tag=r.status==='undone'?'<span class="tag off">Undone</span>'
+          :(r.late>0?'<span class="tag late">'+r.late+' min late</span>':'<span class="tag ok">On time</span>');
     return '<tr class="'+cls+'"><td class="t">'+esc(r.date)+'</td><td class="t">'+esc(to12(r.time))+'</td>'+
-      '<td>'+esc(r.name)+'</td><td>'+esc(r.grade)+'</td><td>'+esc(r.school)+'</td>'+
+      '<td>'+esc(enName(r.name))+'</td><td>'+esc(r.grade)+'</td><td>'+esc(r.school)+'</td>'+
       '<td class="t" style="color:var(--muted);font-size:13px">'+esc(fmtCode(r.code))+'</td>'+
       '<td style="color:var(--muted);font-size:13px">'+esc(r.dev)+'</td><td>'+tag+'</td></tr>';
   }).join('')+'</tbody></table></div>';
 }
 function exportCsv(){
-  if(!rows.length) return alert('先查询出记录再导出');
+  if(!rows.length) return alert('Run a search first, then export.');
   var head=['Date','Time','Student','Grade','School','MinutesLate','Code','Device','Status'];
   var body=rows.map(function(r){
     return [r.date,r.time,r.name,r.grade,r.school,r.late,r.code,r.dev,r.status].map(function(v){
@@ -260,140 +275,140 @@ function fmtCode(c){ c=String(c||''); return c.length>2 ? c.substring(0,2)+'-'+c
 
 function paintCodesUI(){
   $('body').innerHTML=
-  '<p class="sub" style="margin-top:-4px">家长忘了码，在这里按孩子姓名查回来。码存在表格的 <b>SignOutCodes</b> 页，改那里就是改这里。</p>'+
+  '<p class="sub" style="margin-top:-4px">A parent forgot their code — look it up by the child’s name. Codes live on the <b>SignOutCodes</b> tab; edit them there and they change here.</p>'+
   '<div class="panel"><div class="filters">'+
-    '<div class="f"><label>孩子姓名 或 码</label>'+
-      '<input id="cq" placeholder="输入姓名的任意几个字，或直接输码" style="min-width:280px"></div>'+
-    '<button class="b primary" id="cgo">查询</button>'+
-    '<button class="b" id="csync" style="margin-left:auto">同步新学生（补发码）</button>'+
-    '<button class="b" id="crebuild">按家长电话重算码</button>'+
-  '</div></div><div id="cout"><div class="msg">输入姓名开始查询</div></div>'+
-  '<p class="note"><b>同步新学生</b>：给 Students 表里有、但还没有码的学生补一个码，各自单独成一家；'+
-  '新生若有哥哥姐姐在读，记得去 SignOutCodes 把 Family 改成同一个。<br>'+
-  '<b>按家长电话重算码</b>：在 SignOutCodes 的 <b>Phone4</b> 列填家长电话后四位，'+
-  '<b>爸爸妈妈两个号都填</b>，用逗号或斜杠分开（例：<code>5713, 8842</code>），同一家的每一行填一样的。'+
-  '点这个按钮，每个孩子会对每位家长各有一个码，两个都能用、都会弹出全家。'+
-  '会先给你看变更预览，确认了才写入。Phone4 空着的那些行不动。</p>';
+    '<div class="f"><label>Child’s name or code</label>'+
+      '<input id="cq" placeholder="any part of the name, or the code itself" style="min-width:280px"></div>'+
+    '<button class="b primary" id="cgo">Search</button>'+
+    '<button class="b" id="csync" style="margin-left:auto">Add codes for new students</button>'+
+    '<button class="b" id="crebuild">Rebuild codes from phone numbers</button>'+
+  '</div></div><div id="cout"><div class="msg">Type a name to search</div></div>'+
+  '<p class="note"><b>Add codes for new students</b>: gives a code to anyone on the Students tab who doesn’t have one yet, each as their own household. '+
+  'If a new student has a sibling already enrolled, set the same Family on the SignOutCodes tab.<br>'+
+  '<b>Rebuild codes from phone numbers</b>: put the last 4 digits of each parent’s phone in the <b>Phone4</b> column on SignOutCodes — '+
+  '<b>both parents</b>, separated by a comma or slash (e.g. <code>5713, 8842</code>), the same on every row of that family. '+
+  'Each child then gets one code per parent; either one works and both bring up the whole family. '+
+  'You’ll see a preview first and nothing is written until you confirm. Rows with an empty Phone4 are left alone.</p>';
   $('cgo').onclick=doFindCode;
   $('cq').onkeydown=function(e){ if(e.key==='Enter') doFindCode(); };
   $('cq').focus();
   $('crebuild').onclick=function(){
-    $('cout').innerHTML='<div class="msg">正在算…</div>';
+    $('cout').innerHTML='<div class="msg">Calculating…</div>';
     api({action:'rebuildcodes', dry:'1'}, function(r){
-      if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
-      if(!r || !r.ok) return $('cout').innerHTML='<div class="msg">操作失败</div>';
+      if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
+      if(!r || !r.ok) return $('cout').innerHTML='<div class="msg">That didn’t work</div>';
       var warn = (r.shared&&r.shared.length) ? '<div class="panel" style="border-color:var(--amberline);'+
-        'background:var(--amberbg);margin-bottom:14px"><p style="margin:0 0 8px"><b>⚠ 有 '+r.shared.length+
-        ' 个电话尾号被不止一家用了</b> —— 这不影响使用（字母不同就分得开，真撞了系统会自动延长到三个字母），'+
-        '但也可能是抄错了一位，扫一眼确认下：</p>'+
-        r.shared.map(function(sh){ return '<div style="margin-top:6px"><b class="t">'+esc(sh.tail)+'</b>：'+
-          sh.families.map(function(f){ return esc(f.children.join(' & '))+'（'+esc(f.family)+'）'; }).join('　vs　')+
+        'background:var(--amberbg);margin-bottom:14px"><p style="margin:0 0 8px"><b>⚠ '+r.shared.length+
+        ' phone endings are used by more than one family</b> — this still works (different letters keep them apart, '+
+        'and a real clash extends to three letters automatically), but it may also be a typo. Worth a glance:</p>'+
+        r.shared.map(function(sh){ return '<div style="margin-top:6px"><b class="t">'+esc(sh.tail)+'</b>: '+
+          sh.families.map(function(f){ return esc(f.children.join(' & '))+' ('+esc(f.family)+')'; }).join(' &nbsp;vs&nbsp; ')+
           '</div>'; }).join('')+'</div>' : '';
-      if(!r.count) return $('cout').innerHTML= warn + '<div class="msg">没有需要改的码。'+
-        '（还没在 SignOutCodes 的 Phone4 列填电话尾号？填了再点一次）</div>';
-      $('cout').innerHTML= warn + '<div class="panel"><p style="margin:0 0 12px"><b>会改动 '+r.count+' 个码</b>'+
-        '，下面是预览，还没写进表格：</p><div class="scroll"><table><thead><tr>'+
-        '<th>学生</th><th>现在</th><th>改成（每位家长一个）</th><th>家庭</th></tr></thead><tbody>'+
-        r.changes.map(function(c){ return '<tr><td>'+esc(c.name)+'</td>'+
+      if(!r.count) return $('cout').innerHTML= warn + '<div class="msg">No codes need changing. '+
+        '(Haven’t filled in the Phone4 column on SignOutCodes yet? Fill it in and click again.)</div>';
+      $('cout').innerHTML= warn + '<div class="panel"><p style="margin:0 0 12px"><b>'+r.count+' codes would change</b>'+
+        ' — preview below, nothing written yet:</p><div class="scroll"><table><thead><tr>'+
+        '<th>Student</th><th>Now</th><th>New (one per parent)</th><th>Family</th></tr></thead><tbody>'+
+        r.changes.map(function(c){ return '<tr><td>'+esc(enName(c.name))+'</td>'+
           '<td class="t" style="color:var(--muted)">'+esc(fmtCode(c.from))+'</td>'+
           '<td class="t"><b>'+esc(fmtCode(c.to))+'</b>'+
             ((c.alt&&c.alt.length)?'<br>'+c.alt.map(function(a){
               return '<b>'+esc(fmtCode(a))+'</b>'; }).join('<br>'):'')+'</td>'+
           '<td style="color:var(--muted);font-size:13px">'+esc(c.family)+'</td></tr>'; }).join('')+
         '</tbody></table></div>'+
-        '<button class="b primary" id="doit" style="margin-top:14px">确认写入表格</button>'+
-        '<span class="note" style="margin-left:12px">写入后旧码立刻失效，记得重新通知这些家长</span></div>';
+        '<button class="b primary" id="doit" style="margin-top:14px">Write to the sheet</button>'+
+        '<span class="note" style="margin-left:12px">Old codes stop working immediately — remember to tell those parents</span></div>';
       $('doit').onclick=function(){
-        if(!confirm('确认把这 '+r.count+' 个码改掉？旧码马上就不能用了。')) return;
-        $('cout').innerHTML='<div class="msg">写入中…</div>';
+        if(!confirm('Change these '+r.count+' codes? The old ones stop working right away.')) return;
+        $('cout').innerHTML='<div class="msg">Writing…</div>';
         api({action:'rebuildcodes'}, function(r2){
           $('cout').innerHTML = (r2&&r2.ok)
-            ? '<div class="msg">已写入 '+r2.count+' 个码。到 SignOutCodes 页可以核对。</div>'
-            : '<div class="msg">写入失败</div>';
-        }, function(){ $('cout').innerHTML='<div class="msg">连不上服务器</div>'; });
+            ? '<div class="msg">Wrote '+r2.count+' codes. You can check them on the SignOutCodes tab.</div>'
+            : '<div class="msg">Write failed</div>';
+        }, function(){ $('cout').innerHTML='<div class="msg">Can’t reach the server</div>'; });
       };
-    }, function(){ $('cout').innerHTML='<div class="msg">连不上服务器</div>'; });
+    }, function(){ $('cout').innerHTML='<div class="msg">Can’t reach the server</div>'; });
   };
   $('csync').onclick=function(){
-    if(!confirm('给还没有码的在读学生补发码？已有的码不会变。')) return;
-    $('cout').innerHTML='<div class="msg">处理中…</div>';
+    if(!confirm('Add codes for enrolled students who don’t have one yet? Existing codes are untouched.')) return;
+    $('cout').innerHTML='<div class="msg">Working…</div>';
     api({action:'synccodes'}, function(r){
-      if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
-      if(!r || !r.ok) return $('cout').innerHTML='<div class="msg">操作失败</div>';
+      if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
+      if(!r || !r.ok) return $('cout').innerHTML='<div class="msg">That didn’t work</div>';
       $('cout').innerHTML = r.added.length
-        ? '<div class="panel"><p style="margin:0 0 10px"><b>补发了 '+r.added.length+' 个码</b>（码表现在共 '+r.total+' 人）</p>'+
-          '<table><thead><tr><th>学生</th><th>新的码</th></tr></thead><tbody>'+
-          r.added.map(function(a){ return '<tr><td>'+esc(a.name)+'</td><td class="t"><b>'+esc(fmtCode(a.code))+'</b></td></tr>'; }).join('')+
+        ? '<div class="panel"><p style="margin:0 0 10px"><b>Added '+r.added.length+' codes</b> ('+r.total+' students in the code list now)</p>'+
+          '<table><thead><tr><th>Student</th><th>New code</th></tr></thead><tbody>'+
+          r.added.map(function(a){ return '<tr><td>'+esc(enName(a.name))+'</td><td class="t"><b>'+esc(fmtCode(a.code))+'</b></td></tr>'; }).join('')+
           '</tbody></table></div>'
-        : '<div class="msg">没有需要补码的学生，码表共 '+r.total+' 人</div>';
-    }, function(){ $('cout').innerHTML='<div class="msg">连不上服务器</div>'; });
+        : '<div class="msg">Everyone already has a code — '+r.total+' students in the list</div>';
+    }, function(){ $('cout').innerHTML='<div class="msg">Can’t reach the server</div>'; });
   };
 }
 function doFindCode(){
   var q=$('cq').value.trim();
-  if(!q){ $('cout').innerHTML='<div class="msg">输入姓名开始查询</div>'; return; }
-  $('cout').innerHTML='<div class="msg">查询中…</div>';
+  if(!q){ $('cout').innerHTML='<div class="msg">Type a name to search</div>'; return; }
+  $('cout').innerHTML='<div class="msg">Searching…</div>';
   api({action:'findcode', q:q}, function(r){
-    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
     var rows=(r&&r.rows)||[];
-    if(!rows.length){ $('cout').innerHTML='<div class="msg">没找到</div>'; return; }
+    if(!rows.length){ $('cout').innerHTML='<div class="msg">No match</div>'; return; }
     $('cout').innerHTML='<div class="panel scroll"><table><thead><tr>'+
-      '<th>学生</th><th>码</th><th>电话尾号</th><th>年级</th><th>学校</th><th>家庭</th><th>同一家的还有</th>'+
+      '<th>Student</th><th>Code</th><th>Phone ending</th><th>Grade</th><th>School</th><th>Family</th><th>Siblings</th>'+
       '</tr></thead><tbody>'+rows.map(function(x){
-        return '<tr><td>'+esc(x.name)+'</td>'+
+        return '<tr><td>'+esc(enName(x.name))+'</td>'+
           '<td class="t">'+(x.codes||[x.code]).map(function(c,i){
              return '<b style="font-size:17px;letter-spacing:1px">'+esc(fmtCode(c))+'</b>'+
-                    '<span style="color:var(--muted);font-size:11.5px;margin-left:5px">'+(i?'家长2':'家长1')+'</span>'; })
+                    '<span style="color:var(--muted);font-size:11.5px;margin-left:5px">'+(i?'Parent 2':'Parent 1')+'</span>'; })
              .join('<br>')+'</td>'+
           '<td class="t" style="color:var(--muted)">'+esc(x.phone4||'—')+'</td>'+
           '<td>'+esc(x.grade)+'</td><td>'+esc(x.school)+'</td>'+
           '<td style="color:var(--muted);font-size:13px">'+esc(x.family)+'</td>'+
-          '<td>'+(x.siblings.length?esc(x.siblings.join('、')):'<span style="color:var(--muted)">—</span>')+'</td></tr>';
+          '<td>'+(x.siblings.length?esc(x.siblings.map(enName).join(', ')):'<span style="color:var(--muted)">—</span>')+'</td></tr>';
       }).join('')+'</tbody></table></div>';
-  }, function(){ $('cout').innerHTML='<div class="msg">连不上服务器</div>'; });
+  }, function(){ $('cout').innerHTML='<div class="msg">Can’t reach the server</div>'; });
 }
 
 /* ---------- 设备管理 ---------- */
 function paintDevicesUI(){
   $('body').innerHTML='<p class="sub" style="margin-top:-4px">'+
-    '只有这里批准过的设备能打开家长签出页。别人拿到网址也只会看到一个配对码，读不到任何名单。</p>'+
-    '<div id="devs"><div class="msg">载入中…</div></div>'+
-    '<p class="note"><b>怎么加一台新平板：</b>在平板上打开家长端网址 → 屏幕会显示一个 6 位配对码 → '+
-    '在这里找到同样的码 → 点「长期批准」（门口固定平板）或「只批今天」（临时借用的设备）。'+
-    '平板会在几秒内自动进入名单，不用刷新。</p>';
+    'Only devices approved here can open the parent sign-out page. Anyone else who has the URL just sees a pairing code and no names.</p>'+
+    '<div id="devs"><div class="msg">Loading…</div></div>'+
+    '<p class="note"><b>Adding a new tablet:</b> open the parent URL on the tablet — a 6-character pairing code appears. '+
+    'Find the same code here and tap <b>Approve</b> (a permanent door tablet) or <b>Today only</b> (a borrowed device). '+
+    'The tablet joins within a few seconds; no need to refresh.</p>';
 }
 function loadDevices(){
   api({action:'devices'}, function(r){
-    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
     devices=(r&&r.devices)||[];
     // 更新 tab 上的红点
     var t=document.querySelector('.tabs button[data-t="devices"]');
     var pend=devices.filter(function(d){return d.status==='pending';}).length;
-    if(t) t.innerHTML='设备管理'+(pend?'<span class="dot">'+pend+'</span>':'');
+    if(t) t.innerHTML='Devices'+(pend?'<span class="dot">'+pend+'</span>':'');
     paintDevices();
-  }, function(){ var e=$('devs'); if(e) e.innerHTML='<div class="msg">连不上服务器</div>'; });
+  }, function(){ var e=$('devs'); if(e) e.innerHTML='<div class="msg">Can’t reach the server</div>'; });
 }
 function paintDevices(){
   var box=$('devs'); if(!box) return;
-  if(!devices.length){ box.innerHTML='<div class="msg">还没有任何设备。在平板上打开家长端网址就会出现在这里。</div>'; return; }
+  if(!devices.length){ box.innerHTML='<div class="msg">No devices yet. Open the parent URL on a tablet and it will show up here.</div>'; return; }
   var order={pending:0, active:1, expired:2, revoked:3};
   var list=devices.slice().sort(function(a,b){ return (order[a.status]||9)-(order[b.status]||9); });
   box.innerHTML=list.map(function(d){
-    var tag = d.status==='active'  ? '<span class="tag ok">已授权'+(d.expires?'（'+esc(d.expires)+' 到期）':'（长期）')+'</span>'
-            : d.status==='pending' ? '<span class="tag pending">等待批准</span>'
-            : d.status==='expired' ? '<span class="tag off">已过期</span>'
-            :                        '<span class="tag off">已停用</span>';
+    var tag = d.status==='active'  ? '<span class="tag ok">Approved'+(d.expires?' (until '+esc(d.expires)+')':'')+'</span>'
+            : d.status==='pending' ? '<span class="tag pending">Waiting for approval</span>'
+            : d.status==='expired' ? '<span class="tag off">Expired</span>'
+            :                        '<span class="tag off">Turned off</span>';
     var acts = d.status==='active'
-      ? '<button class="b sm" data-a="rename" data-d="'+esc(d.dev)+'">改名</button>'+
-        '<button class="b sm danger" data-a="revoke" data-d="'+esc(d.dev)+'">停用</button>'
-      : '<button class="b sm ok" data-a="perm" data-d="'+esc(d.dev)+'">长期批准</button>'+
-        '<button class="b sm" data-a="today" data-d="'+esc(d.dev)+'">只批今天</button>'+
-        (d.status==='revoked'||d.status==='expired'?'':'<button class="b sm danger" data-a="revoke" data-d="'+esc(d.dev)+'">忽略</button>');
+      ? '<button class="b sm" data-a="rename" data-d="'+esc(d.dev)+'">Rename</button>'+
+        '<button class="b sm danger" data-a="revoke" data-d="'+esc(d.dev)+'">Turn off</button>'
+      : '<button class="b sm ok" data-a="perm" data-d="'+esc(d.dev)+'">Approve</button>'+
+        '<button class="b sm" data-a="today" data-d="'+esc(d.dev)+'">Today only</button>'+
+        (d.status==='revoked'||d.status==='expired'?'':'<button class="b sm danger" data-a="revoke" data-d="'+esc(d.dev)+'">Ignore</button>');
     return '<div class="dev '+(d.status==='pending'?'pending':'')+'">'+
       '<div class="code">'+esc(d.code)+'</div>'+
-      '<div class="who"><b>'+esc(d.name||'未命名设备')+'</b>'+
-        '<span>'+tag+' · 登记 '+esc((d.registered||'').substring(0,16))+
-        (d.seen?' · 最近使用 '+esc(d.seen.substring(0,16)):'')+'</span>'+
+      '<div class="who"><b>'+esc(d.name||'Unnamed device')+'</b>'+
+        '<span>'+tag+' · added '+esc((d.registered||'').substring(0,16))+
+        (d.seen?' · last used '+esc(d.seen.substring(0,16)):'')+'</span>'+
         (d.info?'<span style="display:block;margin-top:2px;opacity:.75">'+esc(d.info)+'</span>':'')+
       '</div><div class="acts">'+acts+'</div></div>';
   }).join('');
@@ -404,27 +419,27 @@ function paintDevices(){
 function act(mode, dev){
   var name='';
   if(mode==='perm'||mode==='today'){
-    name = prompt('给这台设备起个名字（会显示在签出记录里）', mode==='today'?'临时设备':'门口 iPad');
+    name = prompt('Name this device (it shows up in the sign-out records)', mode==='today'?'Borrowed device':'Door iPad');
     if(name===null) return;
   } else if(mode==='rename'){
     var cur=devices.filter(function(d){return d.dev===dev;})[0];
-    name = prompt('改设备名', (cur&&cur.name)||'');
+    name = prompt('Rename device', (cur&&cur.name)||'');
     if(name===null) return;
     mode='';
   } else if(mode==='revoke'){
-    if(!confirm('停用后这台设备立刻无法签出，确定吗？')) return;
+    if(!confirm('This device will stop being able to sign children out immediately. Continue?')) return;
   }
   api({action:'approve', target:dev, mode:mode, name:name}, function(r){
-    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
     loadDevices();
-  }, function(){ alert('操作失败，请重试'); });
+  }, function(){ alert('That didn’t go through — please try again.'); });
 }
 
 /* ---------- 启动 ---------- */
 function boot(){
   if(!CONFIG.API_URL){
-    $('app').innerHTML='<div class="lock panel"><h1>还没配置 API</h1>'+
-      '<p class="sub">请把 Apps Script 的 /exec 地址填进 office.html 顶部的 CONFIG.API_URL</p></div>';
+    $('app').innerHTML='<div class="lock panel"><h1>API not configured</h1>'+
+      '<p class="sub">Paste the Apps Script /exec URL into CONFIG.API_URL at the top of office.html</p></div>';
     return;
   }
   if(!pin) return lock();
@@ -436,7 +451,7 @@ function boot(){
 }
 function boot2(){
   api({action:'devices'}, function(r){
-    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
     devices=(r&&r.devices)||[];
     var pend=devices.filter(function(d){return d.status==='pending';}).length;
     switchTab(pend?'devices':'records');

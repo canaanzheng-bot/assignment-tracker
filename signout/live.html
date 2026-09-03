@@ -1,18 +1,18 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="接送">
+<meta name="apple-mobile-web-app-title" content="Pickup">
 <meta name="theme-color" content="#0E1621">
 <meta name="robots" content="noindex,nofollow">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <link rel="manifest" href="manifest.json">
-<title>MSLC 今天谁被接走了</title>
+<title>MSLC Pickup — Today</title>
 <style>
   :root{--bg:#0E1621;--card:#18232F;--card2:#1F2C3A;--ink:#F2F6F9;--muted:#8CA0B3;
         --line:#2A3947;--green:#31C46B;--amber:#E8A33D;--red:#E2564B}
@@ -77,6 +77,23 @@ var BUSY_FROM = 14, BUSY_TO = 19;      // 下午 2 点到 7 点算接送时段
 
 var pin = '', rows = [], seen = {}, first = true, timer = null, soundOn = true;
 try { pin = localStorage.getItem('mslc_office_pin') || ''; } catch (e) {}
+
+/* 网址里带 ?k=密码 时直接进，不用再输。
+   办公室那台手机把带 ?k= 的网址「添加到主屏幕」一次，以后点图标就直接是看板 ——
+   本地存储被 iOS 清掉、或者从别的 app 里点开（那种内置浏览器不共享存储），都照样能进。
+   ⚠ 这个网址里带着办公室密码，只放自己手机，别转发、别截图外传。 */
+(function () {
+  var k = (qs.get('k') || '').trim();
+  if (!k) return;
+  pin = k;
+  try { localStorage.setItem('mslc_office_pin', pin); } catch (e) {}
+  // 只把 k 从地址栏里抹掉（免得旁边的人看见），别的参数留着
+  try {
+    qs['delete']('k');
+    var rest = qs.toString();
+    history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+  } catch (e) {}
+})();
 try { soundOn = localStorage.getItem('mslc_live_sound') !== '0'; } catch (e) {}
 
 /* 加到主屏幕之后 iOS/Android 会以 standalone 打开，没有地址栏 */
@@ -109,7 +126,7 @@ function api(params, cb, errCb) {
   Object.keys(params).forEach(function (k) { url += '&' + k + '=' + encodeURIComponent(params[k]); });
   url += '&k=' + encodeURIComponent(pin) + '&_=' + Date.now();
   var s = document.createElement('script'), done = false;
-  var t = setTimeout(function () { if (!done) { done = true; clean(); errCb && errCb(); } }, 20000);
+  var t = setTimeout(function () { if (!done) { done = true; clean(); errCb && errCb(); } }, 30000);
   function clean() { clearTimeout(t); try { delete window[name]; } catch (e) { window[name] = undefined; } s.remove(); }
   window[name] = function (r) { if (done) return; done = true; clean(); cb(r); };
   s.onerror = function () { if (done) return; done = true; clean(); errCb && errCb(); };
@@ -117,6 +134,9 @@ function api(params, cb, errCb) {
 }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+/* SignOuts 里存的是花名册全名「Bolin Yuan(袁伯林)」，这一页只显示英文那半截 */
+function enName(s){ return String(s==null?'':s)
+  .replace(/[（(][^）)]*[）)]?/g,' ').replace(/[*＊]/g,' ').replace(/\s+/g,' ').trim(); }
 function to12(hhmm){ if(!hhmm) return '';
   var p=String(hhmm).split(':'), h=parseInt(p[0],10), m=p[1]||'00', ap=h>=12?'PM':'AM';
   h=h%12||12; return h+':'+m+' '+ap; }
@@ -150,10 +170,10 @@ function notify(title, body){
 
 /* ---------- 登录 ---------- */
 function lock(err){
-  $('app').innerHTML = '<div class="lock"><h1 style="margin-bottom:6px">今天谁被接走了</h1>'+
-    '<p style="color:var(--muted);font-size:13px;margin:0 0 18px">输办公室密码</p>'+
+  $('app').innerHTML = '<div class="lock"><h1 style="margin-bottom:6px">Today’s Pickups</h1>'+
+    '<p style="color:var(--muted);font-size:13px;margin:0 0 18px">Office passcode</p>'+
     '<input id="p" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">'+
-    '<button class="b on" id="go">进入</button><div class="err">'+(err?esc(err):'')+'</div></div>';
+    '<button class="b on" id="go">Enter</button><div class="err">'+(err?esc(err):'')+'</div></div>';
   var i = $('p');
   function go(){ pin=i.value.trim(); try{localStorage.setItem('mslc_office_pin',pin);}catch(e){} boot(); }
   $('go').onclick = go;
@@ -166,29 +186,29 @@ function render(connected){
   var late = rows.filter(function(r){ return r.late>0; }).length;
   var canNotify = ('Notification' in window) && Notification.permission==='default';
   $('app').innerHTML =
-    '<header><h1>今天谁被接走了<small>MSLC Pickup · Live</small></h1>'+
+    '<header><h1>Today’s Pickups<small>MSLC Pickup · Live</small></h1>'+
       '<span class="live"><span class="dot'+(connected?'':' off')+'"></span>'+
-      (connected?'实时':'连接中')+'</span></header>'+
+      (connected?'Live':'Connecting')+'</span></header>'+
     '<div class="stats">'+
-      '<div class="stat"><b>'+rows.length+'</b><span>今天已接走</span></div>'+
-      '<div class="stat'+(late?' late':'')+'"><b>'+late+'</b><span>迟接</span></div>'+
+      '<div class="stat"><b>'+rows.length+'</b><span>Picked up today</span></div>'+
+      '<div class="stat'+(late?' late':'')+'"><b>'+late+'</b><span>Late</span></div>'+
     '</div>'+
     '<div class="bar">'+
-      '<button class="b'+(soundOn?' on':'')+'" id="snd">'+(soundOn?'🔔 提示音开':'🔕 提示音关')+'</button>'+
-      (wakeSupported()?'<button class="b'+(wakeOn?' on':'')+'" id="wake">'+(wakeOn?'💡 常亮开':'💡 屏幕常亮')+'</button>':'')+
-      (canNotify?'<button class="b" id="perm">开启手机通知</button>':'')+
-      '<button class="b" id="ref">刷新</button>'+
+      '<button class="b'+(soundOn?' on':'')+'" id="snd">'+(soundOn?'🔔 Sound on':'🔕 Sound off')+'</button>'+
+      (wakeSupported()?'<button class="b'+(wakeOn?' on':'')+'" id="wake">'+(wakeOn?'💡 Screen stays on':'💡 Keep screen on')+'</button>':'')+
+      (canNotify?'<button class="b" id="perm">Enable notifications</button>':'')+
+      '<button class="b" id="ref">Refresh</button>'+
     '</div>'+
     (rows.length ? rows.map(function(r){
         return '<div class="row'+(r.fresh?' fresh':'')+(r.late>0?' late':'')+'">'+
-          '<div class="who"><b>'+esc(r.name)+(r.late>0?'<span class="tag">迟 '+r.late+' 分钟</span>':'')+'</b>'+
+          '<div class="who"><b>'+esc(enName(r.name))+(r.late>0?'<span class="tag">'+r.late+' min late</span>':'')+'</b>'+
           '<span>'+esc(r.grade)+(r.school?' · '+esc(r.school):'')+'</span></div>'+
           '<div class="tm">'+esc(to12(r.time))+'</div></div>';
       }).join('')
-      : '<div class="msg">今天还没有人被接走<br>有人签出会自动出现在这里</div>')+
-    '<div class="hint">这一页只在你打开着的时候查询；手机锁屏或切到别的 app 就自动停，'+
-      '不会白白消耗额度。'+
-      (standalone?'':'<br>手机上：分享 → <b>添加到主屏幕</b>，就能当 app 用（还能收通知）。')+
+      : '<div class="msg">No pickups yet today<br>New sign-outs appear here automatically</div>')+
+    '<div class="hint">This page only checks while it is open — it pauses when the phone locks '+
+      'or you switch apps.'+
+      (standalone?'':'<br>On a phone: Share → <b>Add to Home Screen</b> to use it as an app (and get notifications).')+
       '</div>';
 
   $('snd').onclick = function(){
@@ -213,7 +233,7 @@ function render(connected){
 function poll(){
   var today = iso(new Date());
   api({action:'records', from:today, to:today}, function(r){
-    if(r && r.error==='PIN_REQUIRED') return lock('密码不对');
+    if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
     if(!r || !r.rows) return render(false);
     var fresh = [];
     var list = r.rows.filter(function(x){ return x.status!=='undone'; });
@@ -224,8 +244,8 @@ function poll(){
     rows = list;
     if(fresh.length){
       ding();
-      var names = fresh.map(function(f){ return f.name.replace(/[（(].*/,'').trim(); });
-      notify('已接走 · ' + to12(fresh[0].time), names.join('、'));
+      var names = fresh.map(function(f){ return enName(f.name); });
+      notify('Picked up · ' + to12(fresh[0].time), names.join(', '));
     }
     first = false;
     render(true);
@@ -246,8 +266,8 @@ document.addEventListener('visibilitychange', function(){
 
 function boot(){
   if(!CONFIG.API_URL){
-    $('app').innerHTML='<div class="lock"><h1>还没配置 API</h1>'+
-      '<p style="color:var(--muted);font-size:13px">把 /exec 地址填进 live.html 顶部的 CONFIG.API_URL</p></div>';
+    $('app').innerHTML='<div class="lock"><h1>API not configured</h1>'+
+      '<p style="color:var(--muted);font-size:13px">Paste the /exec URL into CONFIG.API_URL at the top of live.html</p></div>';
     return;
   }
   if(!pin) return lock();
