@@ -70,13 +70,16 @@
 var CONFIG = { API_URL: 'https://mslc-signout.canaan-zheng.workers.dev/' };   // ← 和 index.html / office.html 用同一个 /exec 地址
 var qs = new URLSearchParams(location.search); if (qs.get('api')) CONFIG.API_URL = qs.get('api');
 
-/* 轮询节奏：手机锁屏 / 切走时完全不查，接送时段查得勤一点。
-   Apps Script 每天有执行时长配额，全天每 10 秒查一次会把配额烧掉。 */
-var POLL_BUSY = 15000, POLL_IDLE = 90000;
+/* 轮询节奏：手机锁屏 / 切走时完全不查。
+   现在查一次走 Cloudflare 边缘，60 毫秒左右，所以接送时段可以 5 秒一轮 ——
+   同事最多 5 秒就看到有人被接走。非接送时段放慢到 1 分钟。 */
+var POLL_BUSY = 5000, POLL_IDLE = 60000;
 var BUSY_FROM = 14, BUSY_TO = 19;      // 下午 2 点到 7 点算接送时段
 
 var pin = '', rows = [], seen = {}, first = true, timer = null, soundOn = true;
-try { pin = localStorage.getItem('mslc_office_pin') || ''; } catch (e) {}
+/* 看板用的是「看板口令」，不是办公室密码 —— 拿着它只能看今天谁被接走了，
+   查不了历史、改不了码、动不了设备。所以可以发给同事。 */
+try { pin = localStorage.getItem('mslc_live_key') || ''; } catch (e) {}
 
 /* 网址里带 ?k=密码 时直接进，不用再输。
    办公室那台手机把带 ?k= 的网址「添加到主屏幕」一次，以后点图标就直接是看板 ——
@@ -86,7 +89,7 @@ try { pin = localStorage.getItem('mslc_office_pin') || ''; } catch (e) {}
   var k = (qs.get('k') || '').trim();
   if (!k) return;
   pin = k;
-  try { localStorage.setItem('mslc_office_pin', pin); } catch (e) {}
+  try { localStorage.setItem('mslc_live_key', pin); } catch (e) {}
   // 只把 k 从地址栏里抹掉（免得旁边的人看见），别的参数留着
   try {
     qs['delete']('k');
@@ -143,28 +146,6 @@ function to12(hhmm){ if(!hhmm) return '';
 function iso(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 function $(id){ return document.getElementById(id); }
 
-/* 「今天」按表格所在时区（America/Los_Angeles）算，不看这台设备的时区。
-   办公室后台早就这么做了，这一页原来漏了 —— 手机时区设错、或者在别的时区打开，
-   查的就是错的一天，看板会一直空着。开机问服务器一次，记下差几天，之后自己算。 */
-var DAY_OFFSET = 0;
-function todayISO(){
-  var d = new Date();
-  d.setDate(d.getDate() + DAY_OFFSET);
-  return iso(d);
-}
-function syncServerDay(cb){
-  api({action:'ping'}, function(r){
-    if(r && r.time){
-      var srv = String(r.time).split(' ')[0];
-      var here = iso(new Date());
-      if(srv && srv !== here){
-        DAY_OFFSET = Math.round((new Date(srv+'T12:00:00') - new Date(here+'T12:00:00')) / 86400000);
-      }
-    }
-    cb();
-  }, cb);
-}
-
 /* ---------- 提示音（不用音频文件，直接合成一声） ---------- */
 var actx = null;
 function ding(){
@@ -193,11 +174,11 @@ function notify(title, body){
 /* ---------- 登录 ---------- */
 function lock(err){
   $('app').innerHTML = '<div class="lock"><h1 style="margin-bottom:6px">Today’s Pickups</h1>'+
-    '<p style="color:var(--muted);font-size:13px;margin:0 0 18px">Office passcode</p>'+
+    '<p style="color:var(--muted);font-size:13px;margin:0 0 18px">Pickup board code</p>'+
     '<input id="p" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">'+
     '<button class="b on" id="go">Enter</button><div class="err">'+(err?esc(err):'')+'</div></div>';
   var i = $('p');
-  function go(){ pin=i.value.trim(); try{localStorage.setItem('mslc_office_pin',pin);}catch(e){} boot(); }
+  function go(){ pin=i.value.trim(); try{localStorage.setItem('mslc_live_key',pin);}catch(e){} boot(); }
   $('go').onclick = go;
   i.onkeydown = function(e){ if(e.key==='Enter') go(); };
   i.focus();
@@ -253,12 +234,13 @@ function render(connected){
 
 /* ---------- 轮询 ---------- */
 function poll(){
-  var today = todayISO();
-  api({action:'records', from:today, to:today}, function(r){
-    if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
+  /* 走 Worker 的 today 接口：边缘直出，60 毫秒左右，而且已经只给今天的、
+     撤销掉的不在里面。「今天」由服务器按表格时区算，这台手机时区设错也不影响。 */
+  api({action:'today'}, function(r){
+    if(r && r.error==='PIN_REQUIRED') return lock('Wrong code');
     if(!r || !r.rows) return render(false);
     var fresh = [];
-    var list = r.rows.filter(function(x){ return x.status!=='undone'; });
+    var list = r.rows;
     list.forEach(function(x){
       x.fresh = false;
       if(!seen[x.rid]){ seen[x.rid]=true; if(!first){ x.fresh=true; fresh.push(x); } }
@@ -295,7 +277,7 @@ function boot(){
   if(!pin) return lock();
   first = true; seen = {};
   render(false);
-  syncServerDay(poll);          // 先对准「今天」是几号，再拉数据
+  poll();
   wakeApply();
 }
 boot();
