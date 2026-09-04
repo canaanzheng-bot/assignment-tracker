@@ -143,6 +143,28 @@ function to12(hhmm){ if(!hhmm) return '';
 function iso(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
 function $(id){ return document.getElementById(id); }
 
+/* 「今天」按表格所在时区（America/Los_Angeles）算，不看这台设备的时区。
+   办公室后台早就这么做了，这一页原来漏了 —— 手机时区设错、或者在别的时区打开，
+   查的就是错的一天，看板会一直空着。开机问服务器一次，记下差几天，之后自己算。 */
+var DAY_OFFSET = 0;
+function todayISO(){
+  var d = new Date();
+  d.setDate(d.getDate() + DAY_OFFSET);
+  return iso(d);
+}
+function syncServerDay(cb){
+  api({action:'ping'}, function(r){
+    if(r && r.time){
+      var srv = String(r.time).split(' ')[0];
+      var here = iso(new Date());
+      if(srv && srv !== here){
+        DAY_OFFSET = Math.round((new Date(srv+'T12:00:00') - new Date(here+'T12:00:00')) / 86400000);
+      }
+    }
+    cb();
+  }, cb);
+}
+
 /* ---------- 提示音（不用音频文件，直接合成一声） ---------- */
 var actx = null;
 function ding(){
@@ -231,7 +253,7 @@ function render(connected){
 
 /* ---------- 轮询 ---------- */
 function poll(){
-  var today = iso(new Date());
+  var today = todayISO();
   api({action:'records', from:today, to:today}, function(r){
     if(r && r.error==='PIN_REQUIRED') return lock('Wrong passcode');
     if(!r || !r.rows) return render(false);
@@ -273,7 +295,7 @@ function boot(){
   if(!pin) return lock();
   first = true; seen = {};
   render(false);
-  poll();
+  syncServerDay(poll);          // 先对准「今天」是几号，再拉数据
   wakeApply();
 }
 boot();
