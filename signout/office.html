@@ -82,7 +82,7 @@
 <body>
 <div class="wrap" id="app"></div>
 <script>
-var CONFIG = { API_URL: 'https://script.google.com/macros/s/AKfycbw1efC1uiCzBlCZs09ohmkWI9hncUWQF892gFrKuhUVj4YT0Vpz1MatEaI-hg_ws8M8YQ/exec' };   // ← 与 index.html 用同一个 /exec 地址
+var CONFIG = { API_URL: 'https://mslc-signout.canaan-zheng.workers.dev/' };   // ← 与 index.html 用同一个 /exec 地址
 var qs=new URLSearchParams(location.search); if(qs.get('api')) CONFIG.API_URL=qs.get('api');
 
 var pin='', rows=[], devices=[], tab='records', devTimer=null;
